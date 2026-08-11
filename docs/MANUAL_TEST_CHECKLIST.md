@@ -142,6 +142,26 @@ xcodebuild -project LectureCaption.xcodeproj \
 
 记录附加字段：各时间点内存、CPU、麦克风设备与任何异常。
 
+### MAN-006 Dock 与任务视图激活（必测）
+
+前置条件：`LectureCaption` 未运行；当前桌面至少有一个其他应用窗口。
+
+操作：
+
+1. 在当前桌面中按 Command-R 启动 `LectureCaption`。
+2. 观察 Dock 是否出现 `LectureCaption` 图标，并确认主窗口位于当前桌面且获得焦点。
+3. 切换到另一个应用，再点击 Dock 中的 `LectureCaption` 图标。
+4. 打开任务视图，选择 `LectureCaption` 主窗口。
+5. 结束应用，确认 Dock 图标随进程退出而消失。
+
+输入：Command-R、Dock 图标点击和任务视图中的主窗口点击。
+
+预期输出：
+
+- 应用运行时 Dock 显示 `LectureCaption` 图标。
+- 从 Dock 或任务视图选择窗口后，窗口在当前桌面前置并获得键盘焦点。
+- 不需要将窗口拖动到其他桌面，也不会因激活而创建或切换到新的桌面。
+
 ## 5. 后续 Feature 手工测试
 
 实时 STT、翻译、悬浮字幕、导出和睡眠恢复在对应 Feature 开始前，必须先向本清单补充编号用例。每个新用例必须包含前置条件、明确操作、输入、预期输出和记录字段。

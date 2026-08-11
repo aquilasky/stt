@@ -4,6 +4,7 @@ import SwiftUI
 @main
 struct LectureCaptionApp: App {
     @State private var appState = AppState()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
         WindowGroup {
@@ -31,17 +32,18 @@ private enum WindowVisibilityController {
             return
         }
 
-        guard !hasVisibleTitleBar(window) else { return }
+        if !hasVisibleTitleBar(window) {
+            let screen = NSScreen.main ?? NSScreen.screens.first
+            guard let screen else { return }
+            let visibleFrame = screen.visibleFrame
+            let origin = NSPoint(
+                x: visibleFrame.midX - (window.frame.width / 2),
+                y: visibleFrame.midY - (window.frame.height / 2)
+            )
+            window.setFrameOrigin(origin)
+        }
 
-        let screen = NSScreen.main ?? NSScreen.screens.first
-        guard let screen else { return }
-        let visibleFrame = screen.visibleFrame
-        let origin = NSPoint(
-            x: visibleFrame.midX - (window.frame.width / 2),
-            y: visibleFrame.midY - (window.frame.height / 2)
-        )
-        window.setFrameOrigin(origin)
-
+        window.collectionBehavior.insert(.moveToActiveSpace)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
@@ -60,5 +62,13 @@ private enum WindowVisibilityController {
             return visibleTitleBar.width >= min(120, titleBar.width)
                 && visibleTitleBar.height >= min(20, titleBar.height)
         }
+    }
+}
+
+@MainActor
+private final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
