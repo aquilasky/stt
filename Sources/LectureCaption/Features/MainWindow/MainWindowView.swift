@@ -19,10 +19,25 @@ struct MainWindowView: View {
                     .frame(minWidth: 500, maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .alert(
+            "无法开始采集",
+            isPresented: Binding(
+                get: { appState.captureError != nil },
+                set: { if !$0 { appState.captureError = nil } }
+            )
+        ) {
+            Button("好", role: .cancel) {
+                appState.captureError = nil
+            }
+        } message: {
+            Text(appState.captureError ?? "")
+        }
         .frame(minWidth: 900, minHeight: 620)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button(action: appState.startSession) {
+                Button {
+                    Task { await appState.startSession() }
+                } label: {
                     Label("开始", systemImage: "play.fill")
                 }
                 .disabled(!appState.canStart)
@@ -56,6 +71,10 @@ struct MainWindowView: View {
             Label(appState.isInputActive ? "检测到输入" : "本地监听", systemImage: appState.isInputActive ? "waveform" : "ear")
                 .foregroundStyle(.secondary)
 
+            Text("\(Int(appState.inputLevelDBFS.rounded())) dBFS")
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+
             Spacer()
 
             Label(appState.speechProvider.title, systemImage: appState.speechProvider.symbolName)
@@ -64,6 +83,7 @@ struct MainWindowView: View {
         .font(.callout)
         .padding(.horizontal, 18)
         .frame(height: 44)
+        .help(appState.captureError ?? "")
     }
 
     private var setupPane: some View {
@@ -73,6 +93,21 @@ struct MainWindowView: View {
                     ForEach(AudioInputSource.allCases) { source in
                         Text(source.title).tag(source)
                     }
+                }
+
+                if appState.inputSource == .systemAudio {
+                    Picker("目标应用", selection: $appState.selectedSystemAudioTarget) {
+                        Text("选择应用").tag(nil as SystemAudioTarget?)
+                        ForEach(appState.systemAudioTargets) { target in
+                            Text(target.applicationName).tag(Optional(target))
+                        }
+                    }
+                    .disabled(appState.isRefreshingSystemAudioTargets)
+
+                    Button("刷新应用列表", systemImage: "arrow.clockwise") {
+                        Task { await appState.refreshSystemAudioTargets() }
+                    }
+                    .disabled(appState.isRefreshingSystemAudioTargets)
                 }
 
                 Picker("识别", selection: $appState.speechProvider) {

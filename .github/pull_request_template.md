@@ -4,6 +4,20 @@
 
 Closes #
 
+## Quality Gates
+
+- [ ] Independent subagent review completed; blocking findings are resolved.
+- [ ] Automated checks completed; include exact commands and outcomes below.
+- [ ] Manual validation completed by the implementing agent; include scenarios and outcomes below.
+
+### Automated checks
+
+<!-- Example: git diff --check; swift test; xcodebuild ... build -->
+
+### Manual validation
+
+<!-- Describe device/OS, permissions, inputs, and observed results. -->
+
 ## Changes
 
 - <!-- Summarize the implementation. -->

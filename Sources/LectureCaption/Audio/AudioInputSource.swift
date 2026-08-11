@@ -14,6 +14,14 @@ enum AudioInputSource: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 }
 
+struct SystemAudioTarget: Identifiable, Hashable, Sendable {
+    let processID: Int32
+    let applicationName: String
+    let bundleIdentifier: String
+
+    var id: Int32 { processID }
+}
+
 struct LocalActivityConfiguration: Equatable, Sendable {
     var analysisWindow: TimeInterval = 0.02
     var activationHold: TimeInterval = 0.2
@@ -21,6 +29,9 @@ struct LocalActivityConfiguration: Equatable, Sendable {
     var preRoll: TimeInterval = 0.8
     var activationAboveNoiseFloor: Float = 12
     var releaseAboveNoiseFloor: Float = 6
+    var stableNoiseHold: TimeInterval = 2
+    var stableNoiseToleranceDB: Float = 2
+    var maximumAdaptiveNoiseDBFS: Float = -35
 }
 
 enum AutoPauseOption: String, CaseIterable, Identifiable {

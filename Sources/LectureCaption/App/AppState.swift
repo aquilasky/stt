@@ -11,22 +11,35 @@ final class AppState {
     var courseName = ""
     var topic = ""
     var glossary: [GlossaryEntry] = []
+    var systemAudioTargets: [SystemAudioTarget] = []
+    var selectedSystemAudioTarget: SystemAudioTarget?
+    var isRefreshingSystemAudioTargets = false
     var autoPauseInterval: TimeInterval? = 30
     var phase: SessionPhase = .idle
     var isInputActive = false
+    var inputLevelDBFS: Float = -96
+    var captureError: String?
     var activeSession: LectureSession?
     var captionSegments: [CaptionSegment] = []
 
+    @ObservationIgnored private let audioCaptureController = AudioCaptureController()
+    @ObservationIgnored private var silenceStartedAt: TimeInterval?
+    @ObservationIgnored private var sessionGeneration = 0
+
     var canStart: Bool {
-        phase == .idle || phase == .completed
+        (phase == .idle || phase == .completed)
+            && (inputSource != .systemAudio || selectedSystemAudioTarget != nil)
     }
 
     var canPause: Bool {
         phase == .monitoringLocal || phase == .activatingProvider || phase == .recognizing || phase == .autoPaused
     }
 
-    func startSession() {
+    func startSession() async {
         guard canStart else { return }
+
+        sessionGeneration += 1
+        let generation = sessionGeneration
 
         activeSession = LectureSession(
             context: LectureContext(
@@ -41,7 +54,37 @@ final class AppState {
         )
         captionSegments = []
         isInputActive = false
+        inputLevelDBFS = -96
+        captureError = nil
+        silenceStartedAt = nil
         phase = .monitoringLocal
+
+        do {
+            let outputHandler: AudioCaptureController.OutputHandler = { [weak self] output in
+                guard let self, self.sessionGeneration == generation else { return }
+                self.receiveAudioPipelineOutput(output)
+            }
+            switch inputSource {
+            case .microphone:
+                try await audioCaptureController.startMicrophone(onOutput: outputHandler)
+            case .systemAudio:
+                guard let selectedSystemAudioTarget else { return }
+                try await audioCaptureController.startSystemAudio(
+                    target: selectedSystemAudioTarget,
+                    onOutput: outputHandler
+                )
+            }
+
+            guard generation == sessionGeneration, phase != .completed else {
+                audioCaptureController.stop()
+                return
+            }
+        } catch {
+            guard generation == sessionGeneration else { return }
+            captureError = error.localizedDescription
+            phase = .idle
+            activeSession = nil
+        }
     }
 
     func pauseSession() {
@@ -57,8 +100,11 @@ final class AppState {
 
     func stopSession() {
         guard phase != .idle && phase != .completed else { return }
+        sessionGeneration += 1
+        audioCaptureController.stop()
         activeSession?.endedAt = .now
         isInputActive = false
+        silenceStartedAt = nil
         phase = .completed
     }
 
@@ -87,6 +133,45 @@ final class AppState {
 
         isInputActive = false
         phase = .autoPaused
+    }
+
+    func refreshSystemAudioTargets() async {
+        guard !isRefreshingSystemAudioTargets else { return }
+        isRefreshingSystemAudioTargets = true
+        defer { isRefreshingSystemAudioTargets = false }
+
+        do {
+            let targets = try await SystemAudioCapture.availableTargets()
+            systemAudioTargets = targets
+            if let selectedSystemAudioTarget,
+               !targets.contains(selectedSystemAudioTarget) {
+                self.selectedSystemAudioTarget = nil
+            }
+        } catch {
+            captureError = error.localizedDescription
+        }
+    }
+
+    private func receiveAudioPipelineOutput(_ output: AudioCaptureUpdate) {
+        inputLevelDBFS = output.levelDBFS
+        receiveInputActivity(output.isInputActive)
+
+        guard phase == .recognizing else {
+            silenceStartedAt = nil
+            return
+        }
+
+        if output.isInputActive {
+            silenceStartedAt = nil
+            return
+        }
+
+        if silenceStartedAt == nil {
+            silenceStartedAt = output.endedAt
+        }
+        if let silenceStartedAt {
+            receiveSilence(elapsed: output.endedAt - silenceStartedAt)
+        }
     }
 
     func removeGlossaryEntry(id: UUID) {

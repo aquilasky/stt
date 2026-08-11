@@ -1,6 +1,6 @@
 # LectureCaption
 
-macOS 14+（Apple Silicon）课堂实时字幕 MVP。工程采用 Swift 6.3 与 SwiftUI，并以 Swift Package 形式维护，可直接在 Xcode 中打开 `Package.swift`。
+macOS 14+（Apple Silicon）课堂实时字幕 MVP。工程采用 Swift 6.3 与 SwiftUI，主应用通过 `LectureCaption.xcodeproj` 构建；Swift Package 保留用于快速模块测试。
 
 ## 开发
 
@@ -9,7 +9,7 @@ swift build
 swift test
 ```
 
-在 Xcode 中打开 `Package.swift` 后，选择 `LectureCaption` scheme 运行。
+在 Xcode 中打开 `LectureCaption.xcodeproj` 后，选择 `LectureCaption` scheme 运行。`Resources/Info.plist` 已声明麦克风和系统音频录制权限用途。
 
 当前工程已初始化：
 
