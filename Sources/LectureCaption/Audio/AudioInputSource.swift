@@ -14,31 +14,12 @@ enum AudioInputSource: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 }
 
-enum SystemAudioCaptureScope: Equatable, Sendable {
-    case allSystemAudio
-    case application(processID: Int32)
-}
-
 struct SystemAudioTarget: Identifiable, Hashable, Sendable {
-    static let allSystemAudio = SystemAudioTarget(
-        processID: 0,
-        applicationName: "所有系统音频",
-        bundleIdentifier: "com.aquilasky.LectureCaption.all-system-audio"
-    )
-
     let processID: Int32
     let applicationName: String
     let bundleIdentifier: String
 
     var id: Int32 { processID }
-
-    var capturesAllSystemAudio: Bool {
-        self == Self.allSystemAudio
-    }
-
-    var captureScope: SystemAudioCaptureScope {
-        capturesAllSystemAudio ? .allSystemAudio : .application(processID: processID)
-    }
 }
 
 struct LocalActivityConfiguration: Equatable, Sendable {

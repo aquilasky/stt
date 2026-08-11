@@ -19,10 +19,6 @@ struct MainWindowView: View {
                     .frame(minWidth: 500, maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .task {
-            appState.refreshPermissions()
-            await appState.revalidateSystemAudioPermission()
-        }
         .alert(
             "无法开始采集",
             isPresented: Binding(
@@ -100,19 +96,13 @@ struct MainWindowView: View {
                 }
 
                 if appState.inputSource == .systemAudio {
-                    Picker("音频范围", selection: $appState.selectedSystemAudioTarget) {
+                    Picker("目标应用", selection: $appState.selectedSystemAudioTarget) {
                         Text("选择应用").tag(nil as SystemAudioTarget?)
                         ForEach(appState.systemAudioTargets) { target in
                             Text(target.applicationName).tag(Optional(target))
                         }
                     }
                     .disabled(appState.isRefreshingSystemAudioTargets)
-
-                    if appState.selectedSystemAudioTarget?.capturesAllSystemAudio == true {
-                        Text("将采集所有其他应用的系统音频。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
 
                     Button("刷新应用列表", systemImage: "arrow.clockwise") {
                         Task { await appState.refreshSystemAudioTargets() }
@@ -133,26 +123,6 @@ struct MainWindowView: View {
                     ForEach(AutoPauseOption.allCases) { option in
                         Text(option.title).tag(option)
                     }
-                }
-            }
-
-            Section("权限") {
-                permissionRow(
-                    title: "麦克风",
-                    status: appState.microphonePermission,
-                    inputSource: .microphone
-                )
-                permissionRow(
-                    title: "系统音频",
-                    status: appState.systemAudioPermission,
-                    inputSource: .systemAudio
-                )
-                if let detail = appState.systemAudioPermissionDetail,
-                   !appState.systemAudioPermission.isAuthorized {
-                    Text(detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -203,38 +173,5 @@ struct MainWindowView: View {
         }
         .formStyle(.grouped)
         .padding(.horizontal, 12)
-    }
-
-    private func permissionRow(
-        title: String,
-        status: CapturePermissionStatus,
-        inputSource: AudioInputSource
-    ) -> some View {
-        HStack {
-            Label(title, systemImage: status.symbolName)
-            Spacer()
-            Text(status.title)
-                .foregroundStyle(status.isAuthorized ? .green : .secondary)
-            if !status.isAuthorized {
-                if inputSource == .systemAudio {
-                    Button {
-                        appState.requestSystemAudioPermission()
-                    } label: {
-                        Label("请求授权", systemImage: "lock.open")
-                    }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
-                    .help("请求系统音频录制授权")
-                }
-                Button {
-                    appState.openPrivacySettings(for: inputSource)
-                } label: {
-                    Label("打开系统设置", systemImage: "gearshape")
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .help("打开系统设置")
-            }
-        }
     }
 }

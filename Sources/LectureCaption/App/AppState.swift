@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 import Observation
 
@@ -15,9 +14,6 @@ final class AppState {
     var systemAudioTargets: [SystemAudioTarget] = []
     var selectedSystemAudioTarget: SystemAudioTarget?
     var isRefreshingSystemAudioTargets = false
-    var microphonePermission = AudioCapturePermission.microphoneStatus()
-    var systemAudioPermission = AudioCapturePermission.systemAudioStatus()
-    var systemAudioPermissionDetail: String?
     var autoPauseInterval: TimeInterval? = 30
     var phase: SessionPhase = .idle
     var isInputActive = false
@@ -29,7 +25,6 @@ final class AppState {
     @ObservationIgnored private let audioCaptureController = AudioCaptureController()
     @ObservationIgnored private var silenceStartedAt: TimeInterval?
     @ObservationIgnored private var sessionGeneration = 0
-    @ObservationIgnored private var systemAudioPermissionState = SystemAudioPermissionState()
 
     var canStart: Bool {
         (phase == .idle || phase == .completed)
@@ -86,18 +81,10 @@ final class AppState {
             }
         } catch {
             guard generation == sessionGeneration else { return }
-            if inputSource == .systemAudio {
-                updateSystemAudioPermission(for: error)
-                let message = AudioCapturePermission.diagnosticMessage(for: error)
-                systemAudioPermissionDetail = message
-                captureError = message
-            } else {
-                captureError = error.localizedDescription
-            }
+            captureError = error.localizedDescription
             phase = .idle
             activeSession = nil
         }
-        refreshPermissions()
     }
 
     func pauseSession() {
@@ -154,63 +141,14 @@ final class AppState {
         defer { isRefreshingSystemAudioTargets = false }
 
         do {
-            let targets = [SystemAudioTarget.allSystemAudio] + (try await SystemAudioCapture.availableTargets())
-            systemAudioPermission = systemAudioPermissionState.record(
-                .authorized,
-                legacyAccess: CGPreflightScreenCaptureAccess()
-            )
-            systemAudioPermissionDetail = nil
+            let targets = try await SystemAudioCapture.availableTargets()
             systemAudioTargets = targets
             if let selectedSystemAudioTarget,
                !targets.contains(selectedSystemAudioTarget) {
                 self.selectedSystemAudioTarget = nil
             }
         } catch {
-            updateSystemAudioPermission(for: error)
-            let message = AudioCapturePermission.diagnosticMessage(for: error)
-            systemAudioPermissionDetail = message
-            captureError = message
-        }
-        microphonePermission = AudioCapturePermission.microphoneStatus()
-    }
-
-    func refreshPermissions() {
-        microphonePermission = AudioCapturePermission.microphoneStatus()
-        systemAudioPermission = systemAudioPermissionState.refresh(
-            legacyAccess: CGPreflightScreenCaptureAccess()
-        )
-    }
-
-    func revalidateSystemAudioPermission() async {
-        do {
-            try await SystemAudioCapture.verifyAccess()
-            systemAudioPermission = systemAudioPermissionState.record(
-                .authorized,
-                legacyAccess: CGPreflightScreenCaptureAccess()
-            )
-            systemAudioPermissionDetail = nil
-        } catch {
-            updateSystemAudioPermission(for: error)
-            systemAudioPermissionDetail = AudioCapturePermission.diagnosticMessage(for: error)
-        }
-    }
-
-    func requestSystemAudioPermission() {
-        guard !CGPreflightScreenCaptureAccess() else {
-            refreshPermissions()
-            return
-        }
-
-        _ = AudioCapturePermission.requestSystemAudioAccess()
-        Task { await revalidateSystemAudioPermission() }
-    }
-
-    func openPrivacySettings(for inputSource: AudioInputSource) {
-        switch inputSource {
-        case .microphone:
-            AudioCapturePermission.openMicrophonePrivacySettings()
-        case .systemAudio:
-            AudioCapturePermission.openSystemAudioPrivacySettings()
+            captureError = error.localizedDescription
         }
     }
 
@@ -234,13 +172,6 @@ final class AppState {
         if let silenceStartedAt {
             receiveSilence(elapsed: output.endedAt - silenceStartedAt)
         }
-    }
-
-    private func updateSystemAudioPermission(for error: Error) {
-        systemAudioPermission = systemAudioPermissionState.record(
-            AudioCapturePermission.screenCaptureKitAccessResult(for: error),
-            legacyAccess: CGPreflightScreenCaptureAccess()
-        )
     }
 
     func removeGlossaryEntry(id: UUID) {

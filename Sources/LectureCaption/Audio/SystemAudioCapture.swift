@@ -27,10 +27,6 @@ final class SystemAudioCapture: NSObject, AudioCaptureService, @unchecked Sendab
             .sorted { $0.applicationName.localizedStandardCompare($1.applicationName) == .orderedAscending }
     }
 
-    static func verifyAccess() async throws {
-        _ = try await SCShareableContent.current
-    }
-
     func start(
         target: SystemAudioTarget,
         shouldContinue: @escaping @Sendable () -> Bool,
@@ -45,24 +41,15 @@ final class SystemAudioCapture: NSObject, AudioCaptureService, @unchecked Sendab
         guard let display = content.displays.first else {
             throw AudioCaptureError.noShareableDisplay
         }
-        let filter: SCContentFilter
-        switch target.captureScope {
-        case .allSystemAudio:
-            filter = SCContentFilter(
-                display: display,
-                excludingApplications: [],
-                exceptingWindows: []
-            )
-        case let .application(processID):
-            guard let application = content.applications.first(where: { $0.processID == processID }) else {
-                throw AudioCaptureError.systemAudioTargetUnavailable
-            }
-            filter = SCContentFilter(
-                display: display,
-                including: [application],
-                exceptingWindows: []
-            )
+        guard let application = content.applications.first(where: { $0.processID == target.processID }) else {
+            throw AudioCaptureError.systemAudioTargetUnavailable
         }
+
+        let filter = SCContentFilter(
+            display: display,
+            including: [application],
+            exceptingWindows: []
+        )
         let configuration = SCStreamConfiguration()
         configuration.capturesAudio = true
         configuration.excludesCurrentProcessAudio = true

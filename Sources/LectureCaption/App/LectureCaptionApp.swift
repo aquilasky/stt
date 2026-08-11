@@ -4,7 +4,6 @@ import SwiftUI
 @main
 struct LectureCaptionApp: App {
     @State private var appState = AppState()
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -13,10 +12,6 @@ struct LectureCaptionApp: App {
                     DispatchQueue.main.async {
                         WindowVisibilityController.restoreMainWindowIfNeeded()
                     }
-                }
-                .onChange(of: scenePhase) { _, newPhase in
-                    guard newPhase == .active else { return }
-                    Task { await appState.revalidateSystemAudioPermission() }
                 }
         }
         .defaultSize(width: 1_080, height: 720)

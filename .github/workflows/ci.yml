@@ -23,12 +23,4 @@ jobs:
           xcodebuild -project LectureCaption.xcodeproj
           -scheme LectureCaption
           -destination 'platform=macOS,arch=arm64'
-          -derivedDataPath "$RUNNER_TEMP/LectureCaption-DerivedData"
-          CODE_SIGN_IDENTITY=-
           build
-      - name: Verify app signing identity
-        run: |
-          app_path="$RUNNER_TEMP/LectureCaption-DerivedData/Build/Products/Debug/LectureCaption.app"
-          codesign --verify --deep --strict "$app_path"
-          codesign -dvv "$app_path" 2>&1 | grep -q 'Identifier=com.aquilasky.LectureCaption'
-          codesign -dvv "$app_path" 2>&1 | grep -q 'Info.plist entries='
