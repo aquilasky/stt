@@ -2,6 +2,7 @@ import Foundation
 
 final class AudioCaptureController: @unchecked Sendable {
     typealias OutputHandler = @MainActor @Sendable (AudioCaptureUpdate) -> Void
+    private static let systemAudioDetectionGainDB: Float = 20
 
     private let lock = NSLock()
     private var pipeline = AudioPipeline()
@@ -37,7 +38,7 @@ final class AudioCaptureController: @unchecked Sendable {
         target: SystemAudioTarget,
         onOutput: @escaping OutputHandler
     ) async throws {
-        let (generation, activePipeline) = prepareStart()
+        let (generation, activePipeline) = prepareStart(detectionGainDB: Self.systemAudioDetectionGainDB)
         let capture = SystemAudioCapture()
         install(capture, for: generation)
 
@@ -78,10 +79,10 @@ final class AudioCaptureController: @unchecked Sendable {
         }
     }
 
-    private func prepareStart() -> (generation: Int, pipeline: AudioPipeline) {
+    private func prepareStart(detectionGainDB: Float = 0) -> (generation: Int, pipeline: AudioPipeline) {
         lock.withLock {
             let generation = generationGate.begin()
-            pipeline = AudioPipeline()
+            pipeline = AudioPipeline(detectionGainDB: detectionGainDB)
             pendingDelivery = nil
             return (generation, pipeline)
         }

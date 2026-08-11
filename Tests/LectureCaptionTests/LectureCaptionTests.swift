@@ -1,6 +1,7 @@
 import Foundation
 import ScreenCaptureKit
 import Testing
+@preconcurrency import AVFoundation
 @testable import LectureCaption
 
 @Test @MainActor func automaticPauseKeepsLocalMonitoringReady() {
@@ -134,6 +135,50 @@ import Testing
     #expect(remainder?.startedAt == 5.04)
 }
 
+@Test func pcm16GainAppliesTwentyDecibelsAndSaturates() {
+    let frame = PCM16Frame(
+        sequence: 7,
+        data: pcm16Data(samples: [1_000, -1_000, 4_000, -4_000]),
+        sampleRate: 16_000,
+        startedAt: 12.5
+    )
+
+    let amplified = PCM16Gain.applying(20, to: frame)
+    let samples: [Int16] = amplified.data.withUnsafeBytes { rawBuffer in
+        Array(rawBuffer.bindMemory(to: Int16.self))
+    }
+
+    #expect(samples == [10_000, -10_000, Int16.max, Int16.min])
+    #expect(amplified.sequence == frame.sequence)
+    #expect(amplified.sampleRate == frame.sampleRate)
+    #expect(amplified.startedAt == frame.startedAt)
+}
+
+@Test func audioPipelineUsesGainForDetectionWithoutChangingOutgoingAudio() throws {
+    let format = AVAudioFormat(
+        commonFormat: .pcmFormatInt16,
+        sampleRate: 16_000,
+        channels: 1,
+        interleaved: true
+    )!
+    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 320)!
+    buffer.frameLength = 320
+    buffer.int16ChannelData![0].initialize(repeating: 100, count: 320)
+
+    let pipeline = AudioPipeline(
+        chunkDuration: 0.02,
+        activityConfiguration: LocalActivityConfiguration(activationHold: 0.02),
+        detectionGainDB: 20
+    )
+    let output = try #require(try pipeline.process(buffer: buffer, startedAt: 0))
+    let expectedData = pcm16Data(sampleCount: 320, value: 100)
+
+    #expect(output.isInputActive)
+    #expect(output.levelDBFS > -35)
+    #expect(output.preRollData == expectedData)
+    #expect(output.chunks.first?.data == expectedData)
+}
+
 @Test func preRollBufferKeepsOnlyTheMostRecentAudio() {
     var buffer = PreRollAudioBuffer(maximumDuration: 0.1, sampleRate: 16_000)
     let first = PCM16Frame(sequence: 0, data: pcm16Data(sampleCount: 960, value: 100), sampleRate: 16_000, startedAt: 0)
@@ -207,4 +252,8 @@ import Testing
 private func pcm16Data(sampleCount: Int, value: Int16) -> Data {
     let samples = Array(repeating: value.littleEndian, count: sampleCount)
     return samples.withUnsafeBytes { Data($0) }
+}
+
+private func pcm16Data(samples: [Int16]) -> Data {
+    samples.withUnsafeBytes { Data($0) }
 }

@@ -17,16 +17,19 @@ final class AudioPipeline: @unchecked Sendable {
     private var chunker: PCM16Chunker
     private var preRoll: PreRollAudioBuffer
     private var nextInputSequence = 0
+    private let detectionGainDB: Float
 
     init(
         sampleRate: Double = 16_000,
         chunkDuration: TimeInterval = 0.04,
-        activityConfiguration: LocalActivityConfiguration = .init()
+        activityConfiguration: LocalActivityConfiguration = .init(),
+        detectionGainDB: Float = 0
     ) {
         converter = PCM16AudioConverter(sampleRate: sampleRate)
         detector = LocalActivityDetector(configuration: activityConfiguration)
         chunker = PCM16Chunker(sampleRate: sampleRate, chunkDuration: chunkDuration)
         preRoll = PreRollAudioBuffer(maximumDuration: activityConfiguration.preRoll, sampleRate: sampleRate)
+        self.detectionGainDB = detectionGainDB
     }
 
     func process(
@@ -34,12 +37,14 @@ final class AudioPipeline: @unchecked Sendable {
         startedAt: TimeInterval
     ) throws -> AudioPipelineOutput? {
         try lock.withLock {
-            let frame = try converter.convert(buffer, sequence: nextInputSequence, startedAt: startedAt)
+            let convertedFrame = try converter.convert(buffer, sequence: nextInputSequence, startedAt: startedAt)
             nextInputSequence += 1
+            let frame = convertedFrame
             guard !frame.data.isEmpty else { return nil }
 
             preRoll.append(frame)
-            let measurement = detector.process(frame)
+            let detectionFrame = PCM16Gain.applying(detectionGainDB, to: frame)
+            let measurement = detector.process(detectionFrame)
             let chunks = chunker.append(frame)
             let endedAt = frame.startedAt + frame.duration
 
