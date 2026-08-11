@@ -27,6 +27,10 @@ final class SystemAudioCapture: NSObject, AudioCaptureService, @unchecked Sendab
             .sorted { $0.applicationName.localizedStandardCompare($1.applicationName) == .orderedAscending }
     }
 
+    static func verifyAccess() async throws {
+        _ = try await SCShareableContent.current
+    }
+
     func start(
         target: SystemAudioTarget,
         shouldContinue: @escaping @Sendable () -> Bool,

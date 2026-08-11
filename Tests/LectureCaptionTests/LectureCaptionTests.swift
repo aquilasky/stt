@@ -1,4 +1,5 @@
 import Foundation
+import ScreenCaptureKit
 import Testing
 @testable import LectureCaption
 
@@ -65,8 +66,42 @@ import Testing
     #expect(AudioCapturePermission.microphoneStatus(for: .notDetermined) == .notDetermined)
     #expect(AudioCapturePermission.microphoneStatus(for: .denied) == .denied)
     #expect(AudioCapturePermission.microphoneStatus(for: .restricted) == .restricted)
-    #expect(AudioCapturePermission.systemAudioStatus(hasAccess: true) == .authorized)
-    #expect(AudioCapturePermission.systemAudioStatus(hasAccess: false) == .requiresSystemSettings)
+    #expect(
+        AudioCapturePermission.systemAudioStatus(
+            hasLegacyScreenCaptureAccess: true,
+            hasScreenCaptureKitAccess: false
+        ) == .authorized
+    )
+    #expect(
+        AudioCapturePermission.systemAudioStatus(
+            hasLegacyScreenCaptureAccess: false,
+            hasScreenCaptureKitAccess: true
+        ) == .authorized
+    )
+    #expect(
+        AudioCapturePermission.systemAudioStatus(
+            hasLegacyScreenCaptureAccess: false,
+            hasScreenCaptureKitAccess: false
+        ) == .requiresSystemSettings
+    )
+}
+
+@Test func systemAudioPermissionStatePreservesVerifiedAccessUntilDenied() {
+    var state = SystemAudioPermissionState()
+
+    #expect(state.refresh(legacyAccess: false) == .requiresSystemSettings)
+    #expect(state.record(.authorized, legacyAccess: false) == .authorized)
+    #expect(state.refresh(legacyAccess: false) == .authorized)
+    #expect(state.record(.unavailable, legacyAccess: false) == .authorized)
+    #expect(state.record(.permissionDenied, legacyAccess: true) == .requiresSystemSettings)
+}
+
+@Test func screenCaptureKitPermissionErrorsAreClassifiedSeparately() {
+    let denied = NSError(domain: SCStreamErrorDomain, code: -3_801)
+    let unavailable = NSError(domain: SCStreamErrorDomain, code: -3_802)
+
+    #expect(AudioCapturePermission.screenCaptureKitAccessResult(for: denied) == .permissionDenied)
+    #expect(AudioCapturePermission.screenCaptureKitAccessResult(for: unavailable) == .unavailable)
 }
 
 @Test func chunkerEmitsFixedDurationFramesAndFlushesRemainder() {

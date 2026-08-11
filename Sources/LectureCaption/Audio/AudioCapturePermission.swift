@@ -2,6 +2,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import ScreenCaptureKit
 
 enum CapturePermissionStatus: Equatable, Sendable {
     case authorized
@@ -62,11 +63,27 @@ enum AudioCapturePermission {
     }
 
     static func systemAudioStatus() -> CapturePermissionStatus {
-        systemAudioStatus(hasAccess: CGPreflightScreenCaptureAccess())
+        systemAudioStatus(
+            hasLegacyScreenCaptureAccess: CGPreflightScreenCaptureAccess(),
+            hasScreenCaptureKitAccess: false
+        )
     }
 
-    static func systemAudioStatus(hasAccess: Bool) -> CapturePermissionStatus {
-        hasAccess ? .authorized : .requiresSystemSettings
+    static func systemAudioStatus(
+        hasLegacyScreenCaptureAccess: Bool,
+        hasScreenCaptureKitAccess: Bool
+    ) -> CapturePermissionStatus {
+        (hasLegacyScreenCaptureAccess || hasScreenCaptureKitAccess)
+            ? .authorized
+            : .requiresSystemSettings
+    }
+
+    static func screenCaptureKitAccessResult(for error: Error) -> SystemAudioAccessResult {
+        let error = error as NSError
+        if error.domain == SCStreamErrorDomain, error.code == -3_801 {
+            return .permissionDenied
+        }
+        return .unavailable
     }
 
     static func openMicrophonePrivacySettings() {
@@ -82,5 +99,38 @@ enum AudioCapturePermission {
             return
         }
         NSWorkspace.shared.open(url)
+    }
+}
+
+enum SystemAudioAccessResult: Equatable, Sendable {
+    case authorized
+    case permissionDenied
+    case unavailable
+}
+
+struct SystemAudioPermissionState: Sendable {
+    private(set) var hasVerifiedScreenCaptureKitAccess = false
+
+    mutating func refresh(legacyAccess: Bool) -> CapturePermissionStatus {
+        AudioCapturePermission.systemAudioStatus(
+            hasLegacyScreenCaptureAccess: legacyAccess,
+            hasScreenCaptureKitAccess: hasVerifiedScreenCaptureKitAccess
+        )
+    }
+
+    mutating func record(
+        _ result: SystemAudioAccessResult,
+        legacyAccess: Bool
+    ) -> CapturePermissionStatus {
+        switch result {
+        case .authorized:
+            hasVerifiedScreenCaptureKitAccess = true
+            return .authorized
+        case .permissionDenied:
+            hasVerifiedScreenCaptureKitAccess = false
+            return .requiresSystemSettings
+        case .unavailable:
+            return refresh(legacyAccess: legacyAccess)
+        }
     }
 }
