@@ -12,6 +12,8 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - name: Check whitespace
         run: git diff --check HEAD^
       - name: Run SwiftPM tests
