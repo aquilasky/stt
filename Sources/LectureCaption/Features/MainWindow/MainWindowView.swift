@@ -89,27 +89,6 @@ struct MainWindowView: View {
     private var setupPane: some View {
         Form {
             Section("会话") {
-                Picker("输入", selection: $appState.inputSource) {
-                    ForEach(AudioInputSource.allCases) { source in
-                        Text(source.title).tag(source)
-                    }
-                }
-
-                if appState.inputSource == .systemAudio {
-                    Picker("目标应用", selection: $appState.selectedSystemAudioTarget) {
-                        Text("选择应用").tag(nil as SystemAudioTarget?)
-                        ForEach(appState.systemAudioTargets) { target in
-                            Text(target.applicationName).tag(Optional(target))
-                        }
-                    }
-                    .disabled(appState.isRefreshingSystemAudioTargets)
-
-                    Button("刷新应用列表", systemImage: "arrow.clockwise") {
-                        Task { await appState.refreshSystemAudioTargets() }
-                    }
-                    .disabled(appState.isRefreshingSystemAudioTargets)
-                }
-
                 Picker("识别", selection: $appState.speechProvider) {
                     ForEach(SpeechProviderKind.allCases) { provider in
                         Text(provider.title).tag(provider)

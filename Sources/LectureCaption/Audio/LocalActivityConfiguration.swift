@@ -1,27 +1,5 @@
 import Foundation
 
-enum AudioInputSource: String, CaseIterable, Identifiable, Codable, Sendable {
-    case microphone
-    case systemAudio
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .microphone: "麦克风"
-        case .systemAudio: "系统音频"
-        }
-    }
-}
-
-struct SystemAudioTarget: Identifiable, Hashable, Sendable {
-    let processID: Int32
-    let applicationName: String
-    let bundleIdentifier: String
-
-    var id: Int32 { processID }
-}
-
 struct LocalActivityConfiguration: Equatable, Sendable {
     var analysisWindow: TimeInterval = 0.02
     var activationHold: TimeInterval = 0.2

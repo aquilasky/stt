@@ -24,8 +24,6 @@
     <string>14.0</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>LectureCaption uses the microphone to generate live lecture captions.</string>
-    <key>NSScreenCaptureUsageDescription</key>
-    <string>LectureCaption captures selected app audio to generate live lecture captions.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>

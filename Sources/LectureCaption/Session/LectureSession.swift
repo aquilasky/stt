@@ -5,14 +5,12 @@ struct LectureSession: Identifiable, Codable, Sendable {
     let startedAt: Date
     var endedAt: Date?
     var context: LectureContext
-    var inputSource: AudioInputSource
     var provider: SpeechProviderKind
 
-    init(context: LectureContext, inputSource: AudioInputSource, provider: SpeechProviderKind) {
+    init(context: LectureContext, provider: SpeechProviderKind) {
         id = UUID()
         startedAt = .now
         self.context = context
-        self.inputSource = inputSource
         self.provider = provider
     }
 }

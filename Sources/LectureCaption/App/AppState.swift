@@ -4,16 +4,12 @@ import Observation
 @MainActor
 @Observable
 final class AppState {
-    var inputSource: AudioInputSource = .microphone
     var speechProvider: SpeechProviderKind = .aliyunRealtime
     var sourceLanguage: RecognitionLanguage = .english
     var targetLanguage: TargetLanguage = .simplifiedChinese
     var courseName = ""
     var topic = ""
     var glossary: [GlossaryEntry] = []
-    var systemAudioTargets: [SystemAudioTarget] = []
-    var selectedSystemAudioTarget: SystemAudioTarget?
-    var isRefreshingSystemAudioTargets = false
     var autoPauseInterval: TimeInterval? = 30
     var phase: SessionPhase = .idle
     var isInputActive = false
@@ -27,8 +23,7 @@ final class AppState {
     @ObservationIgnored private var sessionGeneration = 0
 
     var canStart: Bool {
-        (phase == .idle || phase == .completed)
-            && (inputSource != .systemAudio || selectedSystemAudioTarget != nil)
+        phase == .idle || phase == .completed
     }
 
     var canPause: Bool {
@@ -49,7 +44,6 @@ final class AppState {
                 targetLanguage: targetLanguage,
                 glossary: glossary
             ),
-            inputSource: inputSource,
             provider: speechProvider
         )
         captionSegments = []
@@ -64,16 +58,7 @@ final class AppState {
                 guard let self, self.sessionGeneration == generation else { return }
                 self.receiveAudioPipelineOutput(output)
             }
-            switch inputSource {
-            case .microphone:
-                try await audioCaptureController.startMicrophone(onOutput: outputHandler)
-            case .systemAudio:
-                guard let selectedSystemAudioTarget else { return }
-                try await audioCaptureController.startSystemAudio(
-                    target: selectedSystemAudioTarget,
-                    onOutput: outputHandler
-                )
-            }
+            try await audioCaptureController.startMicrophone(onOutput: outputHandler)
 
             guard generation == sessionGeneration, phase != .completed else {
                 audioCaptureController.stop()
@@ -133,23 +118,6 @@ final class AppState {
 
         isInputActive = false
         phase = .autoPaused
-    }
-
-    func refreshSystemAudioTargets() async {
-        guard !isRefreshingSystemAudioTargets else { return }
-        isRefreshingSystemAudioTargets = true
-        defer { isRefreshingSystemAudioTargets = false }
-
-        do {
-            let targets = try await SystemAudioCapture.availableTargets()
-            systemAudioTargets = targets
-            if let selectedSystemAudioTarget,
-               !targets.contains(selectedSystemAudioTarget) {
-                self.selectedSystemAudioTarget = nil
-            }
-        } catch {
-            captureError = error.localizedDescription
-        }
     }
 
     private func receiveAudioPipelineOutput(_ output: AudioCaptureUpdate) {

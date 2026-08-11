@@ -7,7 +7,6 @@ final class AudioCaptureController: @unchecked Sendable {
     private var pipeline = AudioPipeline()
     private var generationGate = CaptureGenerationGate()
     private var microphoneCapture: MicrophoneCapture?
-    private var systemAudioCapture: SystemAudioCapture?
     private var pendingDelivery: PendingDelivery?
     private var isDeliveryScheduled = false
 
@@ -33,46 +32,16 @@ final class AudioCaptureController: @unchecked Sendable {
         }
     }
 
-    func startSystemAudio(
-        target: SystemAudioTarget,
-        onOutput: @escaping OutputHandler
-    ) async throws {
-        let (generation, activePipeline) = prepareStart()
-        let capture = SystemAudioCapture()
-        install(capture, for: generation)
-
-        try await capture.start(target: target, shouldContinue: { [weak self] in
-            self?.isCurrent(generation) == true
-        }) { [weak self] sampleBuffer in
-            guard let self, self.isCurrent(generation) else { return }
-            guard let buffer = SystemAudioPCMBufferBridge.makePCMBuffer(from: sampleBuffer) else {
-                return
-            }
-            let timestamp = ProcessInfo.processInfo.systemUptime
-            guard let output = try? activePipeline.process(buffer: buffer, startedAt: timestamp) else {
-                return
-            }
-            self.publish(AudioCaptureUpdate(output), generation: generation, to: onOutput)
-        }
-
-        guard isCurrent(generation) else {
-            capture.stop()
-            return
-        }
-    }
-
     func stop() {
-        let captures = lock.withLock { () -> (MicrophoneCapture?, SystemAudioCapture?) in
+        let capture = lock.withLock { () -> MicrophoneCapture? in
             generationGate.invalidate()
             pendingDelivery = nil
             defer {
                 microphoneCapture = nil
-                systemAudioCapture = nil
             }
-            return (microphoneCapture, systemAudioCapture)
+            return microphoneCapture
         }
-        captures.0?.stop()
-        captures.1?.stop()
+        capture?.stop()
         lock.withLock {
             _ = pipeline.flush()
         }
@@ -91,13 +60,6 @@ final class AudioCaptureController: @unchecked Sendable {
         lock.withLock {
             guard generationGate.accepts(generation) else { return }
             microphoneCapture = capture
-        }
-    }
-
-    private func install(_ capture: SystemAudioCapture, for generation: Int) {
-        lock.withLock {
-            guard generationGate.accepts(generation) else { return }
-            systemAudioCapture = capture
         }
     }
 

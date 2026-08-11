@@ -35,20 +35,6 @@ import Testing
     #expect(appState.phase == .recognizing)
 }
 
-@Test @MainActor func systemAudioRequiresAnApplicationTargetBeforeStarting() {
-    let appState = AppState()
-
-    appState.inputSource = .systemAudio
-    #expect(!appState.canStart)
-
-    appState.selectedSystemAudioTarget = SystemAudioTarget(
-        processID: 42,
-        applicationName: "Example Player",
-        bundleIdentifier: "com.example.player"
-    )
-    #expect(appState.canStart)
-}
-
 @Test func captureGenerationInvalidatesAnOlderPendingStart() {
     var gate = CaptureGenerationGate()
     let firstStart = gate.begin()

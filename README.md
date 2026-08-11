@@ -9,17 +9,17 @@ swift build
 swift test
 ```
 
-在 Xcode 中打开 `LectureCaption.xcodeproj` 后，选择 `LectureCaption` scheme 运行。`Resources/Info.plist` 已声明麦克风和系统音频录制权限用途。
+在 Xcode 中打开 `LectureCaption.xcodeproj` 后，选择 `LectureCaption` scheme 运行。`Resources/Info.plist` 仅声明麦克风权限用途。
 
 当前工程已初始化：
 
 - 主窗口、课程上下文、术语表和会话控制 UI。
+- 麦克风音频采集、本地输入活动检测、自动待机和手动暂停。
 - 阿里云实时与 MiMo 分块 ASR 的 Provider 抽象。
 - DeepSeek 翻译请求抽象。
-- 本地输入活动、自动待机和手动暂停状态模型。
 - Keychain 读写封装。
 
-真实的音频采集、云端 API 调用、SwiftData 持久化和悬浮字幕窗将在对应 feature 分支中实现。实现约束见 [MVP 开发文档](docs/MVP_DEVELOPMENT.md)，协作流程见 [版本控制与 Pull Request 规范](docs/VERSION_CONTROL.md)。
+云端 API 调用、SwiftData 持久化和悬浮字幕窗将在对应 feature 分支中实现。系统音频采集暂不属于当前 MVP。实现约束见 [MVP 开发文档](docs/MVP_DEVELOPMENT.md)，协作流程见 [版本控制与 Pull Request 规范](docs/VERSION_CONTROL.md)。
 
 ## 安全
 
