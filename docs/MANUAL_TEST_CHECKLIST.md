@@ -41,6 +41,20 @@ xcodebuild -project LectureCaption.xcodeproj \
 
 ## 4. Stage 1：音频采集与本地待机
 
+### MAN-000 启动并显示主窗口（必测）
+
+前置条件：`LectureCaption` 未运行；已在 Xcode 中选择 `LectureCaption` Scheme 和“我的 Mac”运行目标。
+
+操作：按 Command-R，等待构建和启动完成。
+
+输入：无。
+
+预期输出：
+
+- `LectureCaption` 进程保持运行，并显示一个标题为“LectureCaption”的主窗口。
+- 主窗口包含会话设置和“等待字幕”预览区域，窗口位于任一已连接显示器的可见区域。
+- 不应只出现 Dock 图标、空白窗口或立即退出。
+
 ### MAN-001 麦克风权限状态与请求（必测）
 
 前置条件：打开刚构建的 `LectureCaption.app`；系统设置中未授权或已撤销该 App 的麦克风权限。
