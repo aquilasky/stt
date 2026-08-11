@@ -100,13 +100,19 @@ struct MainWindowView: View {
                 }
 
                 if appState.inputSource == .systemAudio {
-                    Picker("目标应用", selection: $appState.selectedSystemAudioTarget) {
+                    Picker("音频范围", selection: $appState.selectedSystemAudioTarget) {
                         Text("选择应用").tag(nil as SystemAudioTarget?)
                         ForEach(appState.systemAudioTargets) { target in
                             Text(target.applicationName).tag(Optional(target))
                         }
                     }
                     .disabled(appState.isRefreshingSystemAudioTargets)
+
+                    if appState.selectedSystemAudioTarget?.capturesAllSystemAudio == true {
+                        Text("将采集所有其他应用的系统音频。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     Button("刷新应用列表", systemImage: "arrow.clockwise") {
                         Task { await appState.refreshSystemAudioTargets() }

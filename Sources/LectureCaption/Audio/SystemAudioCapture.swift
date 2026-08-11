@@ -45,15 +45,24 @@ final class SystemAudioCapture: NSObject, AudioCaptureService, @unchecked Sendab
         guard let display = content.displays.first else {
             throw AudioCaptureError.noShareableDisplay
         }
-        guard let application = content.applications.first(where: { $0.processID == target.processID }) else {
-            throw AudioCaptureError.systemAudioTargetUnavailable
+        let filter: SCContentFilter
+        switch target.captureScope {
+        case .allSystemAudio:
+            filter = SCContentFilter(
+                display: display,
+                excludingApplications: [],
+                exceptingWindows: []
+            )
+        case let .application(processID):
+            guard let application = content.applications.first(where: { $0.processID == processID }) else {
+                throw AudioCaptureError.systemAudioTargetUnavailable
+            }
+            filter = SCContentFilter(
+                display: display,
+                including: [application],
+                exceptingWindows: []
+            )
         }
-
-        let filter = SCContentFilter(
-            display: display,
-            including: [application],
-            exceptingWindows: []
-        )
         let configuration = SCStreamConfiguration()
         configuration.capturesAudio = true
         configuration.excludesCurrentProcessAudio = true

@@ -154,7 +154,7 @@ final class AppState {
         defer { isRefreshingSystemAudioTargets = false }
 
         do {
-            let targets = try await SystemAudioCapture.availableTargets()
+            let targets = [SystemAudioTarget.allSystemAudio] + (try await SystemAudioCapture.availableTargets())
             systemAudioPermission = systemAudioPermissionState.record(
                 .authorized,
                 legacyAccess: CGPreflightScreenCaptureAccess()

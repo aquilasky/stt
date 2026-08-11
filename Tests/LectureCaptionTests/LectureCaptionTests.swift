@@ -51,6 +51,20 @@ import Testing
     #expect(appState.canStart)
 }
 
+@Test func allSystemAudioTargetIsDistinctAndRecognized() {
+    #expect(SystemAudioTarget.allSystemAudio.capturesAllSystemAudio)
+    #expect(SystemAudioTarget.allSystemAudio.processID == 0)
+    #expect(SystemAudioTarget.allSystemAudio.captureScope == .allSystemAudio)
+
+    let applicationTarget = SystemAudioTarget(
+        processID: 42,
+        applicationName: "Example Player",
+        bundleIdentifier: "com.example.player"
+    )
+    #expect(!applicationTarget.capturesAllSystemAudio)
+    #expect(applicationTarget.captureScope == .application(processID: 42))
+}
+
 @Test func captureGenerationInvalidatesAnOlderPendingStart() {
     var gate = CaptureGenerationGate()
     let firstStart = gate.begin()
