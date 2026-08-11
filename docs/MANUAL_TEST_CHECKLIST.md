@@ -23,7 +23,23 @@ MAN-XXX: 通过 | 失败 | 阻塞
 备注：<失败信息、截图路径或复现条件；不得包含密钥>
 ```
 
-## 3. Stage 1：音频采集与本地待机
+## 3. 启动测试 App
+
+1. 在 Finder 或 Xcode 中打开 `LectureCaption.xcodeproj`。
+2. 在 Scheme 菜单选择 `LectureCaption`，运行目标选择“我的 Mac”。
+3. 按 Command-R 构建并启动 Debug App。
+4. 在开始 MAN-001 前，记录 Mac 型号、macOS 版本、输入设备和当前是否已授权麦克风/系统音频。
+
+命令行构建仅用于确认项目可编译，不能代替实际 App 测试：
+
+```bash
+xcodebuild -project LectureCaption.xcodeproj \
+  -scheme LectureCaption \
+  -destination 'platform=macOS,arch=arm64' \
+  build
+```
+
+## 4. Stage 1：音频采集与本地待机
 
 ### MAN-001 麦克风权限状态与请求（必测）
 
@@ -152,6 +168,6 @@ MAN-XXX: 通过 | 失败 | 阻塞
 
 记录附加字段：各时间点内存、CPU、输入来源、耳机/扬声器状态与任何异常。
 
-## 4. 后续 Feature 手工测试
+## 5. 后续 Feature 手工测试
 
 实时 STT、翻译、悬浮字幕、导出和睡眠恢复在对应 Feature 开始前，必须先向本清单补充编号用例。每个新用例必须包含前置条件、明确操作、输入、预期输出和记录字段。
