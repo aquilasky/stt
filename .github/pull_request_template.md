@@ -18,6 +18,10 @@ Closes #
 
 <!-- Describe device/OS, permissions, inputs, and observed results. -->
 
+### Deferred review findings
+
+<!-- List only approved non-blocking findings with impact, temporary behavior, and Issue link. -->
+
 ## Changes
 
 - <!-- Summarize the implementation. -->

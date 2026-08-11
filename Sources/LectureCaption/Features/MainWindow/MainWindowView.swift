@@ -19,6 +19,9 @@ struct MainWindowView: View {
                     .frame(minWidth: 500, maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .task {
+            appState.refreshPermissions()
+        }
         .alert(
             "无法开始采集",
             isPresented: Binding(
@@ -126,6 +129,19 @@ struct MainWindowView: View {
                 }
             }
 
+            Section("权限") {
+                permissionRow(
+                    title: "麦克风",
+                    status: appState.microphonePermission,
+                    inputSource: .microphone
+                )
+                permissionRow(
+                    title: "系统音频",
+                    status: appState.systemAudioPermission,
+                    inputSource: .systemAudio
+                )
+            }
+
             Section("课程") {
                 TextField("课程名称", text: $appState.courseName)
                 TextField("本节主题", text: $appState.topic)
@@ -173,5 +189,28 @@ struct MainWindowView: View {
         }
         .formStyle(.grouped)
         .padding(.horizontal, 12)
+    }
+
+    private func permissionRow(
+        title: String,
+        status: CapturePermissionStatus,
+        inputSource: AudioInputSource
+    ) -> some View {
+        HStack {
+            Label(title, systemImage: status.symbolName)
+            Spacer()
+            Text(status.title)
+                .foregroundStyle(status.isAuthorized ? .green : .secondary)
+            if !status.isAuthorized {
+                Button {
+                    appState.openPrivacySettings(for: inputSource)
+                } label: {
+                    Label("打开系统设置", systemImage: "gearshape")
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .help("打开系统设置")
+            }
+        }
     }
 }

@@ -14,6 +14,8 @@ final class AppState {
     var systemAudioTargets: [SystemAudioTarget] = []
     var selectedSystemAudioTarget: SystemAudioTarget?
     var isRefreshingSystemAudioTargets = false
+    var microphonePermission = AudioCapturePermission.microphoneStatus()
+    var systemAudioPermission = AudioCapturePermission.systemAudioStatus()
     var autoPauseInterval: TimeInterval? = 30
     var phase: SessionPhase = .idle
     var isInputActive = false
@@ -85,6 +87,7 @@ final class AppState {
             phase = .idle
             activeSession = nil
         }
+        refreshPermissions()
     }
 
     func pauseSession() {
@@ -149,6 +152,21 @@ final class AppState {
             }
         } catch {
             captureError = error.localizedDescription
+        }
+        refreshPermissions()
+    }
+
+    func refreshPermissions() {
+        microphonePermission = AudioCapturePermission.microphoneStatus()
+        systemAudioPermission = AudioCapturePermission.systemAudioStatus()
+    }
+
+    func openPrivacySettings(for inputSource: AudioInputSource) {
+        switch inputSource {
+        case .microphone:
+            AudioCapturePermission.openMicrophonePrivacySettings()
+        case .systemAudio:
+            AudioCapturePermission.openSystemAudioPrivacySettings()
         }
     }
 

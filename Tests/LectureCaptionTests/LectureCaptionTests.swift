@@ -60,6 +60,15 @@ import Testing
     #expect(gate.accepts(secondStart))
 }
 
+@Test func capturePermissionStatusMapsMicrophoneAndScreenAccess() {
+    #expect(AudioCapturePermission.microphoneStatus(for: .authorized) == .authorized)
+    #expect(AudioCapturePermission.microphoneStatus(for: .notDetermined) == .notDetermined)
+    #expect(AudioCapturePermission.microphoneStatus(for: .denied) == .denied)
+    #expect(AudioCapturePermission.microphoneStatus(for: .restricted) == .restricted)
+    #expect(AudioCapturePermission.systemAudioStatus(hasAccess: true) == .authorized)
+    #expect(AudioCapturePermission.systemAudioStatus(hasAccess: false) == .requiresSystemSettings)
+}
+
 @Test func chunkerEmitsFixedDurationFramesAndFlushesRemainder() {
     var chunker = PCM16Chunker(sampleRate: 16_000, chunkDuration: 0.04)
     let input = PCM16Frame(
