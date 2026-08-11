@@ -22,6 +22,10 @@ Local.xcconfig
 *-apiKey-*.csv
 *.p8
 *.p12
+*.pem
+*.key
+*.cer
+*.csr
 *.mobileprovision
 
 # Local runtime data

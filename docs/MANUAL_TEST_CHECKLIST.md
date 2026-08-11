@@ -27,9 +27,10 @@ MAN-XXX: 通过 | 失败 | 阻塞
 
 1. 在 Finder 或 Xcode 中打开 `LectureCaption.xcodeproj`。
 2. 在 Scheme 菜单选择 `LectureCaption`，运行目标选择“我的 Mac”。
-3. 按 Command-R 构建并启动 Debug App。
-4. 在开始 MAN-001 前，记录 Mac 型号、macOS 版本、输入设备和当前是否已授权麦克风/系统音频。
-5. 如果本次构建首次使用本地签名，先在“录屏与系统音频”中关闭并重新打开 `LectureCaption` 授权，再返回 App。
+3. 首次本机构建前，运行 `./Scripts/setup-local-signing.sh`，确认登录钥匙串中存在 `LectureCaption Stable Local Signing`。
+4. 按 Command-R 构建并启动 Debug App。
+5. 在开始 MAN-001 前，记录 Mac 型号、macOS 版本、输入设备和当前是否已授权麦克风/系统音频。
+6. 如果本次构建首次使用本地签名，先在“录屏与系统音频”中关闭并重新打开 `LectureCaption` 授权，再返回 App。
 
 命令行构建仅用于确认项目可编译，不能代替实际 App 测试：
 

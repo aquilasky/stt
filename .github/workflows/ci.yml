@@ -24,6 +24,7 @@ jobs:
           -scheme LectureCaption
           -destination 'platform=macOS,arch=arm64'
           -derivedDataPath "$RUNNER_TEMP/LectureCaption-DerivedData"
+          CODE_SIGN_IDENTITY=-
           build
       - name: Verify app signing identity
         run: |
