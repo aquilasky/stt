@@ -6,7 +6,7 @@ struct LectureCaptionApp: App {
     @State private var appState = AppState()
 
     var body: some Scene {
-        Window("LectureCaption", id: "main") {
+        WindowGroup {
             MainWindowView(appState: appState)
                 .onAppear {
                     DispatchQueue.main.async {
