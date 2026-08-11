@@ -16,7 +16,7 @@ struct LectureCaptionApp: App {
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
-                    Task { await appState.revalidateSystemAudioPermissionIfNeeded() }
+                    Task { await appState.revalidateSystemAudioPermission() }
                 }
         }
         .defaultSize(width: 1_080, height: 720)

@@ -94,6 +94,16 @@ enum AudioCapturePermission {
         openPrivacySettings(anchor: "Privacy_ScreenCapture")
     }
 
+    @discardableResult
+    static func requestSystemAudioAccess() -> Bool {
+        CGRequestScreenCaptureAccess()
+    }
+
+    static func diagnosticMessage(for error: Error) -> String {
+        let error = error as NSError
+        return "ScreenCaptureKit 授权验证失败（\(error.domain)，代码 \(error.code)）：\(error.localizedDescription)"
+    }
+
     private static func openPrivacySettings(anchor: String) {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)") else {
             return

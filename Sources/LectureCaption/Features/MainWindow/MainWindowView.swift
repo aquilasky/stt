@@ -21,6 +21,7 @@ struct MainWindowView: View {
         }
         .task {
             appState.refreshPermissions()
+            await appState.revalidateSystemAudioPermission()
         }
         .alert(
             "无法开始采集",
@@ -140,6 +141,13 @@ struct MainWindowView: View {
                     status: appState.systemAudioPermission,
                     inputSource: .systemAudio
                 )
+                if let detail = appState.systemAudioPermissionDetail,
+                   !appState.systemAudioPermission.isAuthorized {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Section("课程") {
@@ -202,6 +210,16 @@ struct MainWindowView: View {
             Text(status.title)
                 .foregroundStyle(status.isAuthorized ? .green : .secondary)
             if !status.isAuthorized {
+                if inputSource == .systemAudio {
+                    Button {
+                        appState.requestSystemAudioPermission()
+                    } label: {
+                        Label("请求授权", systemImage: "lock.open")
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .help("请求系统音频录制授权")
+                }
                 Button {
                     appState.openPrivacySettings(for: inputSource)
                 } label: {

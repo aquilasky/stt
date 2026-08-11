@@ -104,6 +104,17 @@ import Testing
     #expect(AudioCapturePermission.screenCaptureKitAccessResult(for: unavailable) == .unavailable)
 }
 
+@Test func screenCaptureKitDiagnosticIncludesErrorDomainAndCode() {
+    let error = NSError(domain: SCStreamErrorDomain, code: -3_801, userInfo: [
+        NSLocalizedDescriptionKey: "Permission denied"
+    ])
+
+    let message = AudioCapturePermission.diagnosticMessage(for: error)
+
+    #expect(message.contains(SCStreamErrorDomain))
+    #expect(message.contains("-3801"))
+}
+
 @Test func chunkerEmitsFixedDurationFramesAndFlushesRemainder() {
     var chunker = PCM16Chunker(sampleRate: 16_000, chunkDuration: 0.04)
     let input = PCM16Frame(
