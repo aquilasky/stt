@@ -76,16 +76,15 @@ struct MainWindowView: View {
                     Label("更多", systemImage: "ellipsis.circle")
                 }
 
-                Menu {
-                    Picker("字幕字号", selection: $appState.captionFontSize) {
-                        Text("小").tag(CGFloat(15))
-                        Text("标准").tag(CGFloat(18))
-                        Text("大").tag(CGFloat(22))
-                        Text("特大").tag(CGFloat(26))
-                    }
-                } label: {
-                    Label("字幕字号", systemImage: "textformat.size")
+                Button(action: appState.decreaseCaptionFontSize) {
+                    Label("减小字幕字号", systemImage: "textformat.size.smaller")
                 }
+                .disabled(!appState.canDecreaseCaptionFontSize)
+
+                Button(action: appState.increaseCaptionFontSize) {
+                    Label("增大字幕字号", systemImage: "textformat.size.larger")
+                }
+                .disabled(!appState.canIncreaseCaptionFontSize)
             }
         }
         .sheet(isPresented: $showsConfiguration) {

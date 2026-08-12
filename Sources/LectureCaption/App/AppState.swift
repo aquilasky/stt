@@ -73,6 +73,22 @@ final class AppState {
         phase == .monitoringLocal || phase == .activatingProvider || phase == .recognizing || phase == .autoPaused
     }
 
+    var canDecreaseCaptionFontSize: Bool {
+        captionFontSize > Self.minimumCaptionFontSize
+    }
+
+    var canIncreaseCaptionFontSize: Bool {
+        captionFontSize < Self.maximumCaptionFontSize
+    }
+
+    func decreaseCaptionFontSize() {
+        captionFontSize = max(Self.minimumCaptionFontSize, captionFontSize - Self.captionFontSizeStep)
+    }
+
+    func increaseCaptionFontSize() {
+        captionFontSize = min(Self.maximumCaptionFontSize, captionFontSize + Self.captionFontSizeStep)
+    }
+
     func startSession() async {
         guard canStart else { return }
 
@@ -483,6 +499,10 @@ final class AppState {
     private func showSessionHistoryWriteError(_ error: Error) {
         captureError = "无法删除本地课堂记录。\n\(error.localizedDescription)"
     }
+
+    private static let minimumCaptionFontSize: CGFloat = 14
+    private static let maximumCaptionFontSize: CGFloat = 30
+    private static let captionFontSizeStep: CGFloat = 2
 
     private func startTranslationEventHandling(generation: Int) {
         translationEventsTask?.cancel()
