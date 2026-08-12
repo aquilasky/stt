@@ -193,6 +193,86 @@ import Testing
     #expect(FileManager.default.fileExists(atPath: fileURL.path))
 }
 
+@Test func localCredentialsStorePreservesBothProviderKeys() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = LocalCredentialsStore(fileURL: directory.appendingPathComponent("LocalCredentials.json"))
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    try store.saveDashScopeAPIKey("dashscope-key")
+    try store.saveDeepSeekAPIKey("deepseek-key")
+
+    #expect(try store.loadDashScopeAPIKey() == "dashscope-key")
+    #expect(try store.loadDeepSeekAPIKey() == "deepseek-key")
+}
+
+@Test func deepSeekProviderBuildsNonThinkingTranslationRequest() async throws {
+    let transport = FakeDeepSeekHTTPTransport(responses: [
+        .success("{\"choices\":[{\"message\":{\"content\":\"学习率控制每一步优化的步长。\"}}]}")
+    ])
+    let provider = DeepSeekTranslationProvider(
+        settings: DeepSeekTranslationSettings(endpoint: URL(string: "https://example.invalid/chat/completions")!),
+        apiKeyLoader: { "deepseek-test-key" },
+        transport: transport
+    )
+    let translation = try await provider.translate(TranslationRequest(
+        segmentID: UUID(),
+        sourceText: "The learning rate controls the size of each optimization step.",
+        recentContext: ["We optimize the objective."],
+        courseName: "Machine Learning",
+        topic: "Optimization",
+        glossary: [GlossaryEntry(source: "learning rate", target: "学习率")],
+        sourceLanguage: .english,
+        targetLanguage: .simplifiedChinese
+    ))
+
+    #expect(translation == "学习率控制每一步优化的步长。")
+    let request = try #require(await transport.requests.first)
+    #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer deepseek-test-key")
+    let body = try #require(request.httpBody)
+    let root = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+    #expect(root["model"] as? String == "deepseek-v4-flash")
+    #expect(root["stream"] as? Bool == false)
+    #expect((root["thinking"] as? [String: String])?["type"] == "disabled")
+    let messages = try #require(root["messages"] as? [[String: String]])
+    #expect(messages.count == 2)
+    #expect(messages[1]["content"]?.contains("learning rate=学习率") == true)
+    #expect(messages[1]["content"]?.contains("We optimize the objective.") == true)
+}
+
+@Test func translationQueueContinuesInOrderAfterFailure() async throws {
+    let provider = FakeTranslationProvider(results: [.failure, .success("第二句译文")])
+    let queue = TranslationQueue(provider: provider)
+    let firstID = UUID()
+    let secondID = UUID()
+    let events = queue.events()
+    await queue.enqueue(translationRequest(id: firstID, source: "first"))
+    await queue.enqueue(translationRequest(id: secondID, source: "second"))
+
+    var iterator = events.makeAsyncIterator()
+    #expect(await iterator.next() == .failed(segmentID: firstID))
+    #expect(await iterator.next() == .translated(segmentID: secondID, text: "第二句译文"))
+    #expect(await provider.receivedSegmentIDs == [firstID, secondID])
+}
+
+@Test func translationQueuePreservesOrderForAtomicBatch() async throws {
+    let provider = FakeTranslationProvider(results: [.success("first translation"), .success("second translation")])
+    let queue = TranslationQueue(provider: provider)
+    let firstID = UUID()
+    let secondID = UUID()
+    let events = queue.events()
+
+    await queue.enqueue([
+        translationRequest(id: firstID, source: "first"),
+        translationRequest(id: secondID, source: "second")
+    ])
+
+    var iterator = events.makeAsyncIterator()
+    #expect(await iterator.next() == .translated(segmentID: firstID, text: "first translation"))
+    #expect(await iterator.next() == .translated(segmentID: secondID, text: "second translation"))
+    #expect(await provider.receivedSegmentIDs == [firstID, secondID])
+}
+
 @Test func aliyunDNSFailureHasActionableHandshakeError() async throws {
     let transport = FakeAliyunWebSocketTransport(connectError: URLError(.cannotFindHost))
     let provider = AliyunRealtimeSTTProvider(
@@ -395,6 +475,63 @@ private actor FakeAliyunWebSocketTransport: AliyunWebSocketTransport {
     func enqueue(_ message: String) {
         messages.append(message)
     }
+}
+
+private actor FakeDeepSeekHTTPTransport: DeepSeekHTTPTransport {
+    enum Response {
+        case success(String)
+    }
+
+    private var responses: [Response]
+    private(set) var requests: [URLRequest] = []
+
+    init(responses: [Response]) {
+        self.responses = responses
+    }
+
+    func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        requests.append(request)
+        guard case let .success(body) = responses.removeFirst() else { fatalError("Unexpected response") }
+        return (
+            Data(body.utf8),
+            HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        )
+    }
+}
+
+private actor FakeTranslationProvider: TranslationProvider {
+    enum Result {
+        case success(String)
+        case failure
+    }
+
+    private var results: [Result]
+    private(set) var receivedSegmentIDs: [UUID] = []
+
+    init(results: [Result]) {
+        self.results = results
+    }
+
+    func translate(_ request: TranslationRequest) async throws -> String {
+        receivedSegmentIDs.append(request.segmentID)
+        switch results.removeFirst() {
+        case let .success(text): return text
+        case .failure: throw DeepSeekTranslationError.requestFailed(statusCode: 500)
+        }
+    }
+}
+
+private func translationRequest(id: UUID, source: String) -> TranslationRequest {
+    TranslationRequest(
+        segmentID: id,
+        sourceText: source,
+        recentContext: [],
+        courseName: "",
+        topic: "",
+        glossary: [],
+        sourceLanguage: .english,
+        targetLanguage: .simplifiedChinese
+    )
 }
 
 private func waitUntil(

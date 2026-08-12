@@ -200,4 +200,38 @@ xcodebuild -project LectureCaption.xcodeproj \
 - 使用无效 Workspace ID、错误地域或无效 API Key 时，界面显示“阿里云 WebSocket 连接失败”，并提示检查 API Key、Workspace ID 和地域；不得显示 API Key。
 - 无效配置时显示清晰的连接或鉴权错误，应用不崩溃；已有字幕不丢失，麦克风本地监听仍可结束。
 
+### MAN-200 DeepSeek 实时翻译与术语上下文（必测）
+
+前置条件：阿里云实时原文识别可用；具有有效 DeepSeek API Key；课程名称填写 `Machine Learning`，主题填写 `Optimization`，术语表包含 `learning rate=学习率`。
+
+操作：
+
+1. 在“DeepSeek 翻译”填写 API Key，点击“开始”。
+2. 说出 `The learning rate controls the size of each optimization step.`，等待阿里云提交最终原文和译文出现。
+3. 连续说出两条可断句的英文句子，观察两条译文的显示顺序。
+4. 点击“结束”，重新打开应用但不重新输入 DeepSeek API Key，开始新的会话并说出一句英文。
+
+输入：有效 DeepSeek API Key、三条英文短句和一个术语表词。
+
+预期输出：
+
+- 已确认的原文通常在 1 至 2 秒内出现对应简体中文译文；临时原文不触发翻译。
+- 第一条译文保留并遵守 `learning rate=学习率`；后续原文到达不会清掉已经显示的译文。
+- 连续句子的译文按原文顺序写回对应行，不会交换或覆盖。
+- DeepSeek API Key 在点击“开始”后清空并保存到本机配置；重启后无需重填仍可翻译，且 Key 不出现在字幕、提示或日志中。
+
+### MAN-201 DeepSeek 翻译失败不阻断原文（必测）
+
+前置条件：阿里云实时原文识别可用；DeepSeek API Key 为空、无效或已被临时撤销。
+
+操作：开始会话并连续说出两条可断句英文句子。
+
+输入：无效或缺失的 DeepSeek API Key、两条英文短句。
+
+预期输出：
+
+- 原文仍连续显示并保持已确认字幕不跳动、不丢失。
+- 缺失 Key 时只显示原文，不弹出重复错误；无效 Key 或网络失败时对应句子可缺少译文，但后续原文仍继续出现。
+- 点击暂停、结束、自动待机和恢复仍与 MAN-101 一致。
+
 实时翻译、悬浮字幕、导出和睡眠恢复在对应 Feature 开始前，必须先向本清单补充编号用例。每个新用例必须包含前置条件、明确操作、输入、预期输出和记录字段。

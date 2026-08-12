@@ -32,16 +32,34 @@ struct LocalCredentialsStore: Sendable {
     }
 
     func loadDashScopeAPIKey() throws -> String? {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
-        let data = try Data(contentsOf: fileURL)
-        let credentials = try JSONDecoder().decode(Credentials.self, from: data)
-        return credentials.dashScopeAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+        try loadCredentials().dashScopeAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func saveDashScopeAPIKey(_ apiKey: String) throws {
+        var credentials = try loadCredentials()
+        credentials.dashScopeAPIKey = apiKey
+        try save(credentials)
+    }
+
+    func loadDeepSeekAPIKey() throws -> String? {
+        try loadCredentials().deepSeekAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func saveDeepSeekAPIKey(_ apiKey: String) throws {
+        var credentials = try loadCredentials()
+        credentials.deepSeekAPIKey = apiKey
+        try save(credentials)
+    }
+
+    private func loadCredentials() throws -> Credentials {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return Credentials() }
+        let data = try Data(contentsOf: fileURL)
+        return try JSONDecoder().decode(Credentials.self, from: data)
+    }
+
+    private func save(_ credentials: Credentials) throws {
         let directory = fileURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let credentials = Credentials(dashScopeAPIKey: apiKey)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(credentials)
@@ -50,9 +68,16 @@ struct LocalCredentialsStore: Sendable {
 }
 
 private struct Credentials: Codable {
-    let dashScopeAPIKey: String?
+    var dashScopeAPIKey: String?
+    var deepSeekAPIKey: String?
+
+    init(dashScopeAPIKey: String? = nil, deepSeekAPIKey: String? = nil) {
+        self.dashScopeAPIKey = dashScopeAPIKey
+        self.deepSeekAPIKey = deepSeekAPIKey
+    }
 
     enum CodingKeys: String, CodingKey {
         case dashScopeAPIKey = "dashscope_api_key"
+        case deepSeekAPIKey = "deepseek_api_key"
     }
 }
