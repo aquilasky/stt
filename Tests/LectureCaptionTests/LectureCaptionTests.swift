@@ -161,6 +161,54 @@ import Testing
     #expect((parameters["vocabulary"] as? [String: Int])?["gradient descent"] == 3)
 }
 
+@Test func aliyunSettingsBuildRegionSpecificEndpoints() throws {
+    let singapore = try #require(AliyunRealtimeSettings(workspaceID: "workspace", region: .singapore).endpoint)
+    let beijing = try #require(AliyunRealtimeSettings(workspaceID: "workspace", region: .beijing).endpoint)
+
+    #expect(singapore.absoluteString == "wss://workspace.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference")
+    #expect(beijing.absoluteString == "wss://workspace.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference")
+    #expect(AliyunRealtimeSettings.Region.beijing.displayName == "北京")
+}
+
+@Test func aliyunBadServerResponseHasActionableHandshakeError() {
+    let error = AliyunRealtimeProviderError.handshakeFailed(
+        region: .beijing,
+        underlying: URLError(.badServerResponse)
+    )
+
+    #expect(error.localizedDescription.contains("北京"))
+    #expect(error.localizedDescription.contains("API Key"))
+}
+
+@Test func aliyunDNSFailureHasActionableHandshakeError() async throws {
+    let transport = FakeAliyunWebSocketTransport(connectError: URLError(.cannotFindHost))
+    let provider = AliyunRealtimeSTTProvider(
+        settings: AliyunRealtimeSettings(workspaceID: "workspace", region: .beijing),
+        apiKeyLoader: { "test-key" },
+        transport: transport
+    )
+    let configuration = SpeechConfiguration(
+        provider: .aliyunRealtime,
+        sourceLanguage: .automatic,
+        sampleRate: 16_000,
+        glossary: []
+    )
+
+    await #expect(throws: AliyunRealtimeProviderError.handshakeFailed(
+        region: .beijing,
+        underlying: URLError(.cannotFindHost)
+    )) {
+        try await provider.start(configuration: configuration)
+    }
+}
+
+@Test func aliyunServerErrorDoesNotExposeServerMessage() {
+    let error = AliyunServerError(code: "AUTH_ERROR", message: "Bearer secret-value")
+
+    #expect(!error.localizedDescription.contains("secret-value"))
+    #expect(!error.localizedDescription.contains("AUTH_ERROR"))
+}
+
 @Test func aliyunParserMapsLifecycleResultsAndIgnoresHeartbeats() throws {
     let ready = try AliyunRealtimeProtocol.parseServerEvent(
         "{\"header\":{\"task_id\":\"task-1\",\"event\":\"task-started\"},\"payload\":{}}",
@@ -296,11 +344,17 @@ private func pcm16Data(sampleCount: Int, value: Int16) -> Data {
 private actor FakeAliyunWebSocketTransport: AliyunWebSocketTransport {
     private var messages: [String] = []
     private var connected = false
+    private let connectError: URLError?
     private(set) var sentText: [String] = []
     private(set) var sentData: [Data] = []
     private(set) var receiveCallCount = 0
 
+    init(connectError: URLError? = nil) {
+        self.connectError = connectError
+    }
+
     func connect(request: URLRequest) async throws {
+        if let connectError { throw connectError }
         connected = true
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-key")
     }

@@ -107,6 +107,11 @@ struct MainWindowView: View {
 
             Section("阿里云识别") {
                 TextField("Workspace ID", text: $appState.aliyunWorkspaceID)
+                Picker("地域", selection: $appState.aliyunRegion) {
+                    ForEach(AliyunRealtimeSettings.Region.allCases, id: \.self) { region in
+                        Text(region.displayName).tag(region)
+                    }
+                }
                 SecureField("API Key（仅在填写或替换时输入）", text: $appState.aliyunAPIKey)
             }
 

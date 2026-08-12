@@ -11,6 +11,13 @@ final class AppState {
     var topic = ""
     var glossary: [GlossaryEntry] = []
     var aliyunWorkspaceID = UserDefaults.standard.string(forKey: "aliyun-workspace-id") ?? ""
+    var aliyunRegion: AliyunRealtimeSettings.Region = {
+        guard let raw = UserDefaults.standard.string(forKey: "aliyun-region"),
+              let region = AliyunRealtimeSettings.Region(rawValue: raw) else {
+            return .singapore
+        }
+        return region
+    }()
     var aliyunAPIKey = ""
     var autoPauseInterval: TimeInterval? = 30
     var phase: SessionPhase = .idle
@@ -211,9 +218,10 @@ final class AppState {
             }
         }
         UserDefaults.standard.set(workspaceID, forKey: "aliyun-workspace-id")
+        UserDefaults.standard.set(aliyunRegion.rawValue, forKey: "aliyun-region")
 
         let provider = AliyunRealtimeSTTProvider.keychainBacked(
-            settings: AliyunRealtimeSettings(workspaceID: workspaceID)
+            settings: AliyunRealtimeSettings(workspaceID: workspaceID, region: aliyunRegion)
         )
         self.provider = provider
         transcriptStabilizer.beginProviderTask()
@@ -265,8 +273,8 @@ final class AppState {
             drainProviderAudio()
         case .partial, .final:
             captionSegments = transcriptStabilizer.apply(event)
-        case let .failed(_, message):
-            captureError = message
+        case let .failed(code, message):
+            captureError = AliyunServerError(code: code, message: message).localizedDescription
             await clearProvider(provider)
             phase = .monitoringLocal
         case .finished:

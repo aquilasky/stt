@@ -1,10 +1,11 @@
 import Foundation
 
-enum AliyunRealtimeProviderError: LocalizedError {
+enum AliyunRealtimeProviderError: LocalizedError, Equatable {
     case missingAPIKey
     case invalidEndpoint
     case taskNotReady
     case taskAlreadyRunning
+    case handshakeFailed(region: AliyunRealtimeSettings.Region, underlying: Error)
 
     var errorDescription: String? {
         switch self {
@@ -12,6 +13,27 @@ enum AliyunRealtimeProviderError: LocalizedError {
         case .invalidEndpoint: "阿里云 Workspace ID 或区域无效。"
         case .taskNotReady: "语音识别任务尚未准备好接收音频。"
         case .taskAlreadyRunning: "语音识别任务已在运行。"
+        case let .handshakeFailed(region, _):
+            "阿里云 WebSocket 连接失败（\(region.displayName)）。请检查 API Key、Workspace ID 和地域是否匹配。"
+        }
+    }
+
+    var failureReason: String? {
+        guard case let .handshakeFailed(_, underlying) = self else { return nil }
+        return (underlying as? URLError)?.localizedDescription
+    }
+
+    static func == (lhs: AliyunRealtimeProviderError, rhs: AliyunRealtimeProviderError) -> Bool {
+        switch (lhs, rhs) {
+        case (.missingAPIKey, .missingAPIKey),
+             (.invalidEndpoint, .invalidEndpoint),
+             (.taskNotReady, .taskNotReady),
+             (.taskAlreadyRunning, .taskAlreadyRunning):
+            true
+        case let (.handshakeFailed(leftRegion, _), .handshakeFailed(rightRegion, _)):
+            leftRegion == rightRegion
+        default:
+            false
         }
     }
 }
@@ -110,17 +132,18 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
         isReady = false
         do {
             try await transport.connect(request: request)
+            receiveTask = Task { [weak self] in
+                await self?.receiveEvents(taskID: id)
+            }
             try await transport.send(text: AliyunRealtimeProtocol.runTask(
                 taskID: id,
                 settings: settings,
                 speech: configuration
             ))
-            receiveTask = Task { [weak self] in
-                await self?.receiveEvents(taskID: id)
-            }
         } catch {
-            await reset(closeTransport: true, finishStreamWith: error)
-            throw error
+            let reportedError = userFacingError(for: error)
+            await reset(closeTransport: true, finishStreamWith: reportedError)
+            throw reportedError
         }
     }
 
@@ -178,8 +201,30 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
         } catch is CancellationError {
             return
         } catch {
-            await reset(closeTransport: true, finishStreamWith: error)
+            await reset(
+                closeTransport: true,
+                finishStreamWith: userFacingError(for: error)
+            )
         }
+    }
+
+    private func userFacingError(for error: Error) -> Error {
+        guard let urlError = error as? URLError,
+              [
+                  URLError.Code.badServerResponse,
+                  .networkConnectionLost,
+                  .notConnectedToInternet,
+                  .cannotConnectToHost,
+                  .cannotFindHost,
+                  .dnsLookupFailed,
+                  .timedOut
+              ].contains(urlError.code) else {
+            return error
+        }
+        return AliyunRealtimeProviderError.handshakeFailed(
+            region: settings.region,
+            underlying: urlError
+        )
     }
 
     private func reset(closeTransport: Bool, finishStreamWith error: Error?) async {
@@ -202,7 +247,7 @@ struct AliyunServerError: LocalizedError, Equatable, Sendable {
     let message: String
 
     var errorDescription: String? {
-        "阿里云语音识别失败：\(code)。"
+        "阿里云语音识别任务失败。请检查网络、模型与凭据配置。"
     }
 }
 

@@ -166,11 +166,11 @@ xcodebuild -project LectureCaption.xcodeproj \
 
 ### MAN-100 阿里云实时原文与密钥存储（必测）
 
-前置条件：阿里云百炼已开通实时语音识别；已取得新加坡地域 Workspace ID 和有效 DashScope API Key；麦克风权限已授予。
+前置条件：阿里云百炼已开通实时语音识别；已取得有效的 Workspace ID 和 DashScope API Key；已确认 Workspace 所在地域（新加坡或北京）；麦克风权限已授予。
 
 操作：
 
-1. 在“阿里云识别”中填写 Workspace ID 和 API Key，选择“阿里云实时”，点击“开始”。
+1. 在“阿里云识别”中填写 Workspace ID 和 API Key，选择与 Workspace 匹配的“地域”（新加坡或北京），选择“阿里云实时”，点击“开始”。
 2. 正常说一段至少 10 秒的英文或中文，包含一个术语表中的词；中途停顿 2 秒后继续说话。
 3. 点击“结束”，再次点击“开始”，但不重新填写 API Key，再说一段短句。
 
@@ -197,6 +197,7 @@ xcodebuild -project LectureCaption.xcodeproj \
 预期输出：
 
 - 静音阈值后界面变为“自动待机”，不再继续发送云端音频；再次说话后自动重新连接并恢复字幕。
+- 使用无效 Workspace ID、错误地域或无效 API Key 时，界面显示“阿里云 WebSocket 连接失败”，并提示检查 API Key、Workspace ID 和地域；不得显示 API Key。
 - 无效配置时显示清晰的连接或鉴权错误，应用不崩溃；已有字幕不丢失，麦克风本地监听仍可结束。
 
 实时翻译、悬浮字幕、导出和睡眠恢复在对应 Feature 开始前，必须先向本清单补充编号用例。每个新用例必须包含前置条件、明确操作、输入、预期输出和记录字段。

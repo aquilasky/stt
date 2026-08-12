@@ -11,6 +11,13 @@ struct AliyunRealtimeSettings: Sendable, Equatable {
             case .beijing: "cn-beijing.maas.aliyuncs.com"
             }
         }
+
+        var displayName: String {
+            switch self {
+            case .singapore: "新加坡"
+            case .beijing: "北京"
+            }
+        }
     }
 
     let workspaceID: String
