@@ -274,11 +274,14 @@ import Testing
 
     await writer.submit(SavedLectureSession(session: session, segments: [first]), revision: 1)
     await writer.submit(SavedLectureSession(session: session, segments: [first, second]), revision: 2)
-    try await Task.sleep(for: .milliseconds(350))
+    try await waitUntil(timeout: .seconds(2)) {
+        (try? store.load().count) == 1
+    }
 
     let records = try store.load()
+    let record = try #require(records.first)
     #expect(records.count == 1)
-    #expect(records[0].segments.map(\.sourceText) == ["First", "Second"])
+    #expect(record.segments.map(\.sourceText) == ["First", "Second"])
 }
 
 @Test func localSessionHistoryWriterFlushesPendingSnapshotImmediately() async throws {
