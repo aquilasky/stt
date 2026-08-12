@@ -447,6 +447,25 @@ import Testing
     #expect(await provider.receivedSegmentIDs == [firstID, secondID])
 }
 
+@Test func replacementTranslationQueueDeliversEventsToNewSessionListener() async throws {
+    let oldQueue = TranslationQueue(provider: FakeTranslationProvider(results: [.success("old")]))
+    let oldEvents = oldQueue.events()
+    let oldListener = Task {
+        var iterator = oldEvents.makeAsyncIterator()
+        return await iterator.next()
+    }
+    await oldQueue.cancelAll()
+    oldListener.cancel()
+
+    let newQueue = TranslationQueue(provider: FakeTranslationProvider(results: [.success("new")]))
+    let newEvents = newQueue.events()
+    let segmentID = UUID()
+    await newQueue.enqueue(translationRequest(id: segmentID, source: "new source"))
+
+    var iterator = newEvents.makeAsyncIterator()
+    #expect(await iterator.next() == .translated(segmentID: segmentID, text: "new"))
+}
+
 @Test func aliyunDNSFailureHasActionableHandshakeError() async throws {
     let transport = FakeAliyunWebSocketTransport(connectError: URLError(.cannotFindHost))
     let provider = AliyunRealtimeSTTProvider(

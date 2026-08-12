@@ -44,9 +44,7 @@ final class AppState {
     @ObservationIgnored private var restartPreRollData: Data?
     @ObservationIgnored private var restartPreRollEndedAt: TimeInterval?
     @ObservationIgnored private var preRollEndedAt: TimeInterval?
-    @ObservationIgnored private let translationQueue = TranslationQueue(
-        provider: DeepSeekTranslationProvider.localCredentialsBacked()
-    )
+    @ObservationIgnored private var translationQueue: TranslationQueue?
     @ObservationIgnored private var translationEventsTask: Task<Void, Never>?
     @ObservationIgnored private var translatedSegmentIDs: Set<UUID> = []
     @ObservationIgnored private let sessionHistoryStore: LocalSessionHistoryStore
@@ -127,8 +125,13 @@ final class AppState {
         captionSegments = []
         transcriptStabilizer = TranscriptStabilizer()
         translatedSegmentIDs = []
-        await translationQueue.cancelAll()
-        startTranslationEventHandling(generation: generation)
+        await translationQueue?.cancelAll()
+        translationEventsTask?.cancel()
+        let translationQueue = TranslationQueue(
+            provider: DeepSeekTranslationProvider.localCredentialsBacked()
+        )
+        self.translationQueue = translationQueue
+        startTranslationEventHandling(queue: translationQueue, generation: generation)
         clearPendingProviderAudio()
         isInputActive = false
         inputLevelDBFS = -96
@@ -175,7 +178,9 @@ final class AppState {
         sessionGeneration += 1
         audioCaptureController.stop()
         requestProviderFinish()
-        Task { await translationQueue.cancelAll() }
+        let translationQueue = translationQueue
+        Task { await translationQueue?.cancelAll() }
+        self.translationQueue = nil
         translationEventsTask?.cancel()
         translationEventsTask = nil
         activeSession?.endedAt = .now
@@ -504,12 +509,16 @@ final class AppState {
     private static let maximumCaptionFontSize: CGFloat = 30
     private static let captionFontSizeStep: CGFloat = 2
 
-    private func startTranslationEventHandling(generation: Int) {
+    private func startTranslationEventHandling(queue: TranslationQueue, generation: Int) {
         translationEventsTask?.cancel()
-        let events = translationQueue.events()
+        let events = queue.events()
         translationEventsTask = Task { [weak self] in
             for await event in events {
-                guard let self, self.sessionGeneration == generation else { return }
+                guard let self,
+                      self.sessionGeneration == generation,
+                      self.translationQueue === queue else {
+                    return
+                }
                 self.applyTranslationEvent(event)
             }
         }
@@ -542,7 +551,7 @@ final class AppState {
                 targetLanguage: targetLanguage
             ))
         }
-        if !requests.isEmpty {
+        if !requests.isEmpty, let translationQueue {
             await translationQueue.enqueue(requests)
         }
     }
