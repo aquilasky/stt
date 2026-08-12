@@ -2,9 +2,10 @@ import SwiftUI
 
 struct CaptionPreviewView: View {
     let segments: [CaptionSegment]
+    let fontSize: CGFloat
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        Group {
             if segments.isEmpty {
                 ContentUnavailableView(
                     "等待字幕",
@@ -13,24 +14,29 @@ struct CaptionPreviewView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ForEach(segments.suffix(6)) { segment in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(segment.sourceText)
-                            .font(.headline)
-                            .foregroundStyle(segment.state == .provisional ? .secondary : .primary)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 18) {
+                        ForEach(segments) { segment in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(segment.sourceText)
+                                    .font(.system(size: fontSize, weight: .medium))
+                                    .foregroundStyle(segment.state == .provisional ? .secondary : .primary)
 
-                        if let translation = segment.translatedText {
-                            Text(translation)
-                                .font(.body)
-                                .foregroundStyle(.secondary)
+                                if let translation = segment.translatedText {
+                                    Text(translation)
+                                        .font(.system(size: max(13, fontSize - 2)))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                            .padding(.vertical, 2)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 4)
+                    .padding(24)
                 }
             }
         }
-        .padding(20)
         .background(.regularMaterial)
     }
 }

@@ -27,6 +27,8 @@ final class AppState {
     var captureError: String?
     var activeSession: LectureSession?
     var captionSegments: [CaptionSegment] = []
+    var captionFontSize: CGFloat = 18
+    var savedSessions: [SavedLectureSession] = []
 
     @ObservationIgnored private let audioCaptureController = AudioCaptureController()
     @ObservationIgnored private var silenceStartedAt: TimeInterval?
@@ -47,6 +49,21 @@ final class AppState {
     )
     @ObservationIgnored private var translationEventsTask: Task<Void, Never>?
     @ObservationIgnored private var translatedSegmentIDs: Set<UUID> = []
+    @ObservationIgnored private let sessionHistoryStore: LocalSessionHistoryStore
+    @ObservationIgnored private let sessionHistoryWriter: LocalSessionHistoryWriter
+    @ObservationIgnored private var sessionHistoryEventsTask: Task<Void, Never>?
+    @ObservationIgnored private var sessionHistoryRevision = 0
+
+    init(sessionHistoryStore: LocalSessionHistoryStore = .default) {
+        self.sessionHistoryStore = sessionHistoryStore
+        sessionHistoryWriter = LocalSessionHistoryWriter(store: sessionHistoryStore)
+        do {
+            savedSessions = try sessionHistoryStore.load()
+        } catch {
+            captureError = "无法读取本地课堂记录。\n\(error.localizedDescription)"
+        }
+        startSessionHistoryEventHandling()
+    }
 
     var canStart: Bool {
         phase == .idle || phase == .completed
@@ -137,7 +154,7 @@ final class AppState {
         }
     }
 
-    func stopSession() {
+    func stopSession() async {
         guard phase != .idle && phase != .completed else { return }
         sessionGeneration += 1
         audioCaptureController.stop()
@@ -146,6 +163,14 @@ final class AppState {
         translationEventsTask?.cancel()
         translationEventsTask = nil
         activeSession?.endedAt = .now
+        if let pendingSave = makeCurrentSessionSave() {
+            do {
+                await sessionHistoryWriter.submit(pendingSave.record, revision: pendingSave.revision)
+                try await sessionHistoryWriter.flush()
+            } catch {
+                captureError = "无法保存本地课堂记录。\n\(error.localizedDescription)"
+            }
+        }
         isInputActive = false
         silenceStartedAt = nil
         phase = .completed
@@ -285,6 +310,9 @@ final class AppState {
         case .partial, .final:
             applyTranscriptUpdate(transcriptStabilizer.apply(event))
             await enqueueCommittedSegmentsForTranslation()
+            if case .final = event {
+                saveCurrentSession()
+            }
         case let .failed(code, message):
             captureError = AliyunServerError(code: code, message: message).localizedDescription
             await clearProvider(provider)
@@ -406,6 +434,56 @@ final class AppState {
         glossary.removeAll { $0.id == id }
     }
 
+    func saveCurrentSession() {
+        guard let pendingSave = makeCurrentSessionSave() else { return }
+        Task { [sessionHistoryWriter] in
+            await sessionHistoryWriter.submit(pendingSave.record, revision: pendingSave.revision)
+        }
+    }
+
+    private func makeCurrentSessionSave() -> (record: SavedLectureSession, revision: Int)? {
+        guard let session = activeSession else { return nil }
+
+        let savedSegments = captionSegments
+            .filter { $0.state != .provisional }
+            .sorted { $0.sequence < $1.sequence }
+        guard !savedSegments.isEmpty else { return nil }
+
+        let record = SavedLectureSession(session: session, segments: savedSegments)
+        savedSessions.removeAll { $0.id == record.id }
+        savedSessions.append(record)
+        savedSessions.sort { $0.startedAt > $1.startedAt }
+        sessionHistoryRevision += 1
+        return (record, sessionHistoryRevision)
+    }
+
+    func removeSavedSession(id: UUID) {
+        savedSessions.removeAll { $0.id == id }
+        Task { [weak self, sessionHistoryWriter] in
+            do {
+                try await sessionHistoryWriter.remove(id: id)
+            } catch {
+                self?.showSessionHistoryWriteError(error)
+            }
+        }
+    }
+
+    private func startSessionHistoryEventHandling() {
+        let events = sessionHistoryWriter.events()
+        sessionHistoryEventsTask = Task { [weak self] in
+            for await event in events {
+                guard let self else { return }
+                if case let .failed(message) = event {
+                    captureError = "无法保存本地课堂记录。\n\(message)"
+                }
+            }
+        }
+    }
+
+    private func showSessionHistoryWriteError(_ error: Error) {
+        captureError = "无法删除本地课堂记录。\n\(error.localizedDescription)"
+    }
+
     private func startTranslationEventHandling(generation: Int) {
         translationEventsTask?.cancel()
         let events = translationQueue.events()
@@ -476,9 +554,11 @@ final class AppState {
             guard let index = captionSegments.firstIndex(where: { $0.id == segmentID }) else { return }
             captionSegments[index].translatedText = text
             captionSegments[index].state = .completed
+            saveCurrentSession()
         case let .failed(segmentID):
             guard let index = captionSegments.firstIndex(where: { $0.id == segmentID }) else { return }
             captionSegments[index].state = .translationFailed
+            saveCurrentSession()
         }
     }
 }

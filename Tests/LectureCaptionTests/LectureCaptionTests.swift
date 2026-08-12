@@ -206,6 +206,109 @@ import Testing
     #expect(try store.loadDeepSeekAPIKey() == "deepseek-key")
 }
 
+@Test func localSessionHistoryStorePersistsCompleteSessionAndReplacesSameID() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = LocalSessionHistoryStore(fileURL: directory.appendingPathComponent("Sessions.json"))
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let session = LectureSession(
+        context: LectureContext(
+            courseName: "Machine Learning",
+            topic: "Optimization",
+            sourceLanguage: .english,
+            targetLanguage: .simplifiedChinese,
+            glossary: []
+        ),
+        provider: .aliyunRealtime
+    )
+    let first = CaptionSegment(
+        sequence: 0,
+        sourceText: "The learning rate controls the step size.",
+        translatedText: "学习率控制步长。",
+        startedAt: 2,
+        endedAt: 5,
+        state: .completed
+    )
+    let second = CaptionSegment(
+        sequence: 1,
+        sourceText: "We will now optimize the objective.",
+        startedAt: 6,
+        endedAt: 8,
+        state: .translationFailed
+    )
+
+    let initial = try store.save(SavedLectureSession(session: session, segments: [first, second]))
+    #expect(initial.count == 1)
+    let reloaded = try store.load()
+    #expect(reloaded.count == 1)
+    #expect(reloaded[0].id == session.id)
+    #expect(reloaded[0].segments.map(\.sourceText) == [first.sourceText, second.sourceText])
+    #expect(reloaded[0].segments[0].translatedText == first.translatedText)
+
+    let replacement = try store.save(SavedLectureSession(session: session, segments: [first]))
+    #expect(replacement.count == 1)
+    #expect(replacement[0].segments.count == 1)
+    #expect(try store.remove(id: session.id).isEmpty)
+}
+
+@Test func localSessionHistoryWriterCoalescesRapidSessionSnapshots() async throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = LocalSessionHistoryStore(fileURL: directory.appendingPathComponent("Sessions.json"))
+    let writer = LocalSessionHistoryWriter(store: store)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let session = LectureSession(
+        context: LectureContext(
+            courseName: "Algorithms",
+            topic: "Sorting",
+            sourceLanguage: .english,
+            targetLanguage: .simplifiedChinese,
+            glossary: []
+        ),
+        provider: .aliyunRealtime
+    )
+    let first = CaptionSegment(sequence: 0, sourceText: "First", startedAt: 0, state: .committed)
+    let second = CaptionSegment(sequence: 1, sourceText: "Second", startedAt: 1, state: .completed)
+
+    await writer.submit(SavedLectureSession(session: session, segments: [first]), revision: 1)
+    await writer.submit(SavedLectureSession(session: session, segments: [first, second]), revision: 2)
+    try await Task.sleep(for: .milliseconds(350))
+
+    let records = try store.load()
+    #expect(records.count == 1)
+    #expect(records[0].segments.map(\.sourceText) == ["First", "Second"])
+}
+
+@Test func localSessionHistoryWriterFlushesPendingSnapshotImmediately() async throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = LocalSessionHistoryStore(fileURL: directory.appendingPathComponent("Sessions.json"))
+    let writer = LocalSessionHistoryWriter(store: store)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let session = LectureSession(
+        context: LectureContext(
+            courseName: "Databases",
+            topic: "Indexes",
+            sourceLanguage: .english,
+            targetLanguage: .simplifiedChinese,
+            glossary: []
+        ),
+        provider: .aliyunRealtime
+    )
+    let segment = CaptionSegment(sequence: 0, sourceText: "Final record", startedAt: 0, state: .committed)
+
+    await writer.submit(SavedLectureSession(session: session, segments: [segment]), revision: 1)
+    try await writer.flush()
+
+    let records = try store.load()
+    #expect(records.count == 1)
+    #expect(records[0].id == session.id)
+    #expect(records[0].segments.first?.sourceText == "Final record")
+}
+
 @Test func deepSeekProviderBuildsNonThinkingTranslationRequest() async throws {
     let transport = FakeDeepSeekHTTPTransport(responses: [
         .success("{\"choices\":[{\"message\":{\"content\":\"学习率控制每一步优化的步长。\"}}]}")
