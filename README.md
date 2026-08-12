@@ -15,12 +15,12 @@ swift test
 
 - 主窗口、课程上下文、术语表和会话控制 UI。
 - 麦克风音频采集、本地输入活动检测、自动待机和手动暂停。
-- 阿里云实时与 MiMo 分块 ASR 的 Provider 抽象。
+- 阿里云实时 ASR 的 Provider 抽象。
 - DeepSeek 翻译请求抽象。
 - Keychain 读写封装。
 
-云端 API 调用、SwiftData 持久化和悬浮字幕窗将在对应 feature 分支中实现。系统音频采集暂不属于当前 MVP。实现约束见 [MVP 开发文档](docs/MVP_DEVELOPMENT.md)，协作流程见 [版本控制与 Pull Request 规范](docs/VERSION_CONTROL.md)。
+DeepSeek 翻译、SwiftData 持久化和悬浮字幕窗将在对应 feature 分支中实现。MiMo 分块 ASR 与系统音频采集均不属于当前 MVP，在 MVP 验收后另行评估。实现约束见 [MVP 开发文档](docs/MVP_DEVELOPMENT.md)，协作流程见 [版本控制与 Pull Request 规范](docs/VERSION_CONTROL.md)。
 
-## 安全
+## 本地配置
 
-不要提交 API Key、业务空间私密配置、签名材料或原始课堂音频。`*-apiKey-*.csv`、`.env` 和本地密钥配置已被 `.gitignore` 排除。
+API Key 以明文 JSON 保存在 `~/Library/Application Support/LectureCaption/LocalCredentials.json`，供开发版和 Release 版共用。不要将该文件、业务空间私密配置、签名材料或原始课堂音频提交到 Git；`LocalCredentials.json`、`*-apiKey-*.csv` 和 `.env` 已被 `.gitignore` 排除。

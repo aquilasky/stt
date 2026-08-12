@@ -2,21 +2,18 @@ import Foundation
 
 enum SpeechProviderKind: String, CaseIterable, Identifiable, Codable, Sendable {
     case aliyunRealtime
-    case mimoChunked
 
     var id: Self { self }
 
     var title: String {
         switch self {
         case .aliyunRealtime: "阿里云实时"
-        case .mimoChunked: "MiMo 分块"
         }
     }
 
     var symbolName: String {
         switch self {
         case .aliyunRealtime: "waveform.path.ecg"
-        case .mimoChunked: "waveform.badge.magnifyingglass"
         }
     }
 }

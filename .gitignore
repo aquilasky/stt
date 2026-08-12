@@ -19,6 +19,8 @@ xcuserdata/
 !.env.example
 Secrets.xcconfig
 Local.xcconfig
+LocalCredentials.json
+Config/LocalCredentials.json
 *-apiKey-*.csv
 *.p8
 *.p12
