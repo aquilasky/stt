@@ -240,6 +240,66 @@ import Testing
     #expect(messages[1]["content"]?.contains("We optimize the objective.") == true)
 }
 
+@Test func deepSeekProviderRetriesWithoutCourseContextAfterContextRejection() async throws {
+    let transport = FakeDeepSeekHTTPTransport(responses: [
+        .failure(statusCode: 400),
+        .success("{\"choices\":[{\"message\":{\"content\":\"课程上下文未随请求失败。\"}}]}")
+    ])
+    let provider = DeepSeekTranslationProvider(
+        settings: DeepSeekTranslationSettings(endpoint: URL(string: "https://example.invalid/chat/completions")!),
+        apiKeyLoader: { "deepseek-test-key" },
+        transport: transport
+    )
+
+    let translation = try await provider.translate(TranslationRequest(
+        segmentID: UUID(),
+        sourceText: "Translate this sentence.",
+        recentContext: ["Earlier sentence."],
+        courseName: "A course title",
+        topic: "A topic",
+        glossary: [GlossaryEntry(source: "sentence", target: "句子")],
+        sourceLanguage: .english,
+        targetLanguage: .simplifiedChinese
+    ))
+
+    #expect(translation == "课程上下文未随请求失败。")
+    let requests = await transport.requests
+    #expect(requests.count == 2)
+    let firstContent = try #require(messageContent(from: requests[0]))
+    let retryContent = try #require(messageContent(from: requests[1]))
+    #expect(firstContent.contains("课程：A course title"))
+    #expect(retryContent == "待翻译：Translate this sentence.")
+}
+
+@Test func deepSeekProviderBoundsCourseContext() async throws {
+    let transport = FakeDeepSeekHTTPTransport(responses: [
+        .success("{\"choices\":[{\"message\":{\"content\":\"译文\"}}]}")
+    ])
+    let provider = DeepSeekTranslationProvider(
+        settings: DeepSeekTranslationSettings(endpoint: URL(string: "https://example.invalid/chat/completions")!),
+        apiKeyLoader: { "deepseek-test-key" },
+        transport: transport
+    )
+
+    _ = try await provider.translate(TranslationRequest(
+        segmentID: UUID(),
+        sourceText: "Source",
+        recentContext: [],
+        courseName: String(repeating: "c", count: 200),
+        topic: String(repeating: "t", count: 300),
+        glossary: [],
+        sourceLanguage: .english,
+        targetLanguage: .simplifiedChinese
+    ))
+
+    let request = try #require(await transport.requests.first)
+    let content = try #require(messageContent(from: request))
+    #expect(content.contains("课程：" + String(repeating: "c", count: 160)))
+    #expect(!content.contains(String(repeating: "c", count: 161)))
+    #expect(content.contains("主题：" + String(repeating: "t", count: 240)))
+    #expect(!content.contains(String(repeating: "t", count: 241)))
+}
+
 @Test func translationQueueContinuesInOrderAfterFailure() async throws {
     let provider = FakeTranslationProvider(results: [.failure, .success("第二句译文")])
     let queue = TranslationQueue(provider: provider)
@@ -480,6 +540,7 @@ private actor FakeAliyunWebSocketTransport: AliyunWebSocketTransport {
 private actor FakeDeepSeekHTTPTransport: DeepSeekHTTPTransport {
     enum Response {
         case success(String)
+        case failure(statusCode: Int)
     }
 
     private var responses: [Response]
@@ -491,12 +552,32 @@ private actor FakeDeepSeekHTTPTransport: DeepSeekHTTPTransport {
 
     func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
         requests.append(request)
-        guard case let .success(body) = responses.removeFirst() else { fatalError("Unexpected response") }
+        let response = responses.removeFirst()
+        let statusCode: Int
+        let body: String
+        switch response {
+        case let .success(value):
+            statusCode = 200
+            body = value
+        case let .failure(value):
+            statusCode = value
+            body = "{\"error\":\"context rejected\"}"
+        }
         return (
             Data(body.utf8),
-            HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            HTTPURLResponse(url: request.url!, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
         )
     }
+}
+
+private func messageContent(from request: URLRequest) -> String? {
+    guard let body = request.httpBody,
+          let root = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+          let messages = root["messages"] as? [[String: String]],
+          messages.count > 1 else {
+        return nil
+    }
+    return messages[1]["content"]
 }
 
 private actor FakeTranslationProvider: TranslationProvider {

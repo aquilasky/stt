@@ -59,6 +59,25 @@ struct DeepSeekTranslationProvider: TranslationProvider {
         guard let apiKey = try apiKeyLoader(), !apiKey.isEmpty else {
             throw DeepSeekTranslationError.missingAPIKey
         }
+
+        do {
+            return try await translate(request, apiKey: apiKey, includeContext: true)
+        } catch let error as DeepSeekTranslationError {
+            // Course metadata is optional enrichment. A malformed or oversized value
+            // must not prevent the confirmed transcript from receiving a translation.
+            guard request.hasTranslationContext,
+                  error.isContextRetryable else {
+                throw error
+            }
+            return try await translate(request, apiKey: apiKey, includeContext: false)
+        }
+    }
+
+    private func translate(
+        _ request: TranslationRequest,
+        apiKey: String,
+        includeContext: Bool
+    ) async throws -> String {
         var urlRequest = URLRequest(url: settings.endpoint)
         urlRequest.httpMethod = "POST"
         urlRequest.timeoutInterval = settings.timeout
@@ -68,7 +87,7 @@ struct DeepSeekTranslationProvider: TranslationProvider {
             model: settings.model,
             messages: [
                 ChatMessage(role: "system", content: systemPrompt(target: request.targetLanguage)),
-                ChatMessage(role: "user", content: prompt(for: request))
+                ChatMessage(role: "user", content: prompt(for: request, includeContext: includeContext))
             ]
         ))
 
@@ -88,13 +107,39 @@ struct DeepSeekTranslationProvider: TranslationProvider {
         "你是课堂字幕翻译器。只输出待翻译句子的\(target.title)译文。遵守术语表，不解释，不总结。"
     }
 
-    private func prompt(for request: TranslationRequest) -> String {
-        let glossary = request.glossary
+    private func prompt(for request: TranslationRequest, includeContext: Bool) -> String {
+        guard includeContext else {
+            return "待翻译：\(bounded(request.sourceText, maximumLength: 2_000))"
+        }
+
+        let glossary = request.glossary.prefix(40)
             .filter { !$0.source.isEmpty && !$0.target.isEmpty }
-            .map { "\($0.source)=\($0.target)" }
+            .map { "\(bounded($0.source, maximumLength: 120))=\(bounded($0.target, maximumLength: 120))" }
             .joined(separator: "；")
-        let context = request.recentContext.joined(separator: "\n")
-        return "课程：\(request.courseName)\n主题：\(request.topic)\n原文语言：\(request.sourceLanguage.title)\n术语：\(glossary)\n上下文：\(context)\n待翻译：\(request.sourceText)"
+        let context = request.recentContext.suffix(4)
+            .map { bounded($0, maximumLength: 800) }
+            .joined(separator: "\n")
+        return "课程：\(bounded(request.courseName, maximumLength: 160))\n主题：\(bounded(request.topic, maximumLength: 240))\n原文语言：\(request.sourceLanguage.title)\n术语：\(glossary)\n上下文：\(context)\n待翻译：\(bounded(request.sourceText, maximumLength: 2_000))"
+    }
+
+    private func bounded(_ value: String, maximumLength: Int) -> String {
+        String(value.prefix(maximumLength)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+private extension TranslationRequest {
+    var hasTranslationContext: Bool {
+        !courseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !topic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !glossary.isEmpty
+            || !recentContext.isEmpty
+    }
+}
+
+private extension DeepSeekTranslationError {
+    var isContextRetryable: Bool {
+        guard case let .requestFailed(statusCode) = self else { return false }
+        return statusCode == 400 || statusCode == 413 || statusCode == 422
     }
 }
 
