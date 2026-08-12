@@ -109,11 +109,17 @@ private struct PendingDelivery: @unchecked Sendable {
 struct AudioCaptureUpdate: Sendable {
     let levelDBFS: Float
     let isInputActive: Bool
+    let activityEvent: LocalActivityEvent
+    let preRollData: Data?
+    let chunks: [PCM16Frame]
     let endedAt: TimeInterval
 
     init(_ output: AudioPipelineOutput) {
         levelDBFS = output.levelDBFS
         isInputActive = output.isInputActive
+        activityEvent = output.activityEvent
+        preRollData = output.preRollData
+        chunks = output.chunks
         endedAt = output.endedAt
     }
 }

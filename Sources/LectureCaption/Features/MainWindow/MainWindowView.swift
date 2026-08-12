@@ -105,6 +105,11 @@ struct MainWindowView: View {
                 }
             }
 
+            Section("阿里云识别") {
+                TextField("Workspace ID", text: $appState.aliyunWorkspaceID)
+                SecureField("API Key（仅在填写或替换时输入）", text: $appState.aliyunAPIKey)
+            }
+
             Section("课程") {
                 TextField("课程名称", text: $appState.courseName)
                 TextField("本节主题", text: $appState.topic)
