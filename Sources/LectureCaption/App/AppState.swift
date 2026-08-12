@@ -19,6 +19,7 @@ final class AppState {
         return region
     }()
     var aliyunAPIKey = ""
+    var deepSeekAPIKey = ""
     var autoPauseInterval: TimeInterval? = 30
     var phase: SessionPhase = .idle
     var isInputActive = false
@@ -41,6 +42,11 @@ final class AppState {
     @ObservationIgnored private var restartPreRollData: Data?
     @ObservationIgnored private var restartPreRollEndedAt: TimeInterval?
     @ObservationIgnored private var preRollEndedAt: TimeInterval?
+    @ObservationIgnored private let translationQueue = TranslationQueue(
+        provider: DeepSeekTranslationProvider.localCredentialsBacked()
+    )
+    @ObservationIgnored private var translationEventsTask: Task<Void, Never>?
+    @ObservationIgnored private var translatedSegmentIDs: Set<UUID> = []
 
     var canStart: Bool {
         phase == .idle || phase == .completed
@@ -62,6 +68,15 @@ final class AppState {
                 return
             }
         }
+        if !deepSeekAPIKey.isEmpty {
+            do {
+                try LocalCredentialsStore.default.saveDeepSeekAPIKey(deepSeekAPIKey)
+                deepSeekAPIKey = ""
+            } catch {
+                captureError = "无法保存 DeepSeek API Key。\n\(error.localizedDescription)"
+                return
+            }
+        }
 
         sessionGeneration += 1
         let generation = sessionGeneration
@@ -78,6 +93,9 @@ final class AppState {
         )
         captionSegments = []
         transcriptStabilizer = TranscriptStabilizer()
+        translatedSegmentIDs = []
+        await translationQueue.cancelAll()
+        startTranslationEventHandling(generation: generation)
         clearPendingProviderAudio()
         isInputActive = false
         inputLevelDBFS = -96
@@ -124,6 +142,9 @@ final class AppState {
         sessionGeneration += 1
         audioCaptureController.stop()
         requestProviderFinish()
+        Task { await translationQueue.cancelAll() }
+        translationEventsTask?.cancel()
+        translationEventsTask = nil
         activeSession?.endedAt = .now
         isInputActive = false
         silenceStartedAt = nil
@@ -262,7 +283,8 @@ final class AppState {
             providerIsReady = true
             drainProviderAudio()
         case .partial, .final:
-            captionSegments = transcriptStabilizer.apply(event)
+            applyTranscriptUpdate(transcriptStabilizer.apply(event))
+            await enqueueCommittedSegmentsForTranslation()
         case let .failed(code, message):
             captureError = AliyunServerError(code: code, message: message).localizedDescription
             await clearProvider(provider)
@@ -382,5 +404,81 @@ final class AppState {
 
     func removeGlossaryEntry(id: UUID) {
         glossary.removeAll { $0.id == id }
+    }
+
+    private func startTranslationEventHandling(generation: Int) {
+        translationEventsTask?.cancel()
+        let events = translationQueue.events()
+        translationEventsTask = Task { [weak self] in
+            for await event in events {
+                guard let self, self.sessionGeneration == generation else { return }
+                self.applyTranslationEvent(event)
+            }
+        }
+    }
+
+    private func enqueueCommittedSegmentsForTranslation() async {
+        guard !isDeepSeekTranslationDisabled else { return }
+        let confirmedSegments = captionSegments.filter { $0.state != .provisional }
+        let segmentsToTranslate = confirmedSegments
+            .filter { $0.state == .committed && !translatedSegmentIDs.contains($0.id) }
+            .sorted { $0.sequence < $1.sequence }
+        var requests: [TranslationRequest] = []
+
+        for segment in segmentsToTranslate {
+            translatedSegmentIDs.insert(segment.id)
+            guard let index = captionSegments.firstIndex(where: { $0.id == segment.id }) else { continue }
+            captionSegments[index].state = .translating
+            let recentContext = confirmedSegments
+                .filter { $0.sequence < segment.sequence }
+                .suffix(4)
+                .map(\.sourceText)
+            requests.append(TranslationRequest(
+                segmentID: segment.id,
+                sourceText: segment.sourceText,
+                recentContext: recentContext,
+                courseName: courseName,
+                topic: topic,
+                glossary: glossary,
+                sourceLanguage: sourceLanguage,
+                targetLanguage: targetLanguage
+            ))
+        }
+        if !requests.isEmpty {
+            await translationQueue.enqueue(requests)
+        }
+    }
+
+    private func applyTranscriptUpdate(_ updatedSegments: [CaptionSegment]) {
+        let translations = Dictionary(
+            uniqueKeysWithValues: captionSegments.map { ($0.id, ($0.translatedText, $0.state)) }
+        )
+        captionSegments = updatedSegments.map { segment in
+            guard let (translation, state) = translations[segment.id] else { return segment }
+            var merged = segment
+            merged.translatedText = translation
+            if state == .translating || state == .completed || state == .translationFailed {
+                merged.state = state
+            }
+            return merged
+        }
+    }
+
+    private var isDeepSeekTranslationDisabled: Bool {
+        let enteredKey = deepSeekAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !enteredKey.isEmpty { return false }
+        return (try? LocalCredentialsStore.default.loadDeepSeekAPIKey())?.isEmpty != false
+    }
+
+    private func applyTranslationEvent(_ event: TranslationQueueEvent) {
+        switch event {
+        case let .translated(segmentID, text):
+            guard let index = captionSegments.firstIndex(where: { $0.id == segmentID }) else { return }
+            captionSegments[index].translatedText = text
+            captionSegments[index].state = .completed
+        case let .failed(segmentID):
+            guard let index = captionSegments.firstIndex(where: { $0.id == segmentID }) else { return }
+            captionSegments[index].state = .translationFailed
+        }
     }
 }

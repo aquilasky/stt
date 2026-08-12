@@ -115,6 +115,10 @@ struct MainWindowView: View {
                 SecureField("API Key（仅在填写或替换时输入）", text: $appState.aliyunAPIKey)
             }
 
+            Section("DeepSeek 翻译") {
+                SecureField("API Key（留空则仅显示原文）", text: $appState.deepSeekAPIKey)
+            }
+
             Section("课程") {
                 TextField("课程名称", text: $appState.courseName)
                 TextField("本节主题", text: $appState.topic)
