@@ -70,6 +70,7 @@ enum TranscriptEvent: Sendable, Equatable {
     case partial(providerSentenceID: String, text: String, startedAt: TimeInterval)
     case final(providerSentenceID: String, text: String, startedAt: TimeInterval, endedAt: TimeInterval)
     case finished
+    case failed(code: String, message: String)
 }
 
 protocol SpeechRecognitionProvider: Sendable {
