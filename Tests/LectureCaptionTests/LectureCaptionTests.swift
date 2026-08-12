@@ -180,6 +180,19 @@ import Testing
     #expect(error.localizedDescription.contains("API Key"))
 }
 
+@Test func localCredentialsStoreWritesAndReadsDashScopeAPIKey() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let fileURL = directory.appendingPathComponent("LocalCredentials.json")
+    let store = LocalCredentialsStore(fileURL: fileURL)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    try store.saveDashScopeAPIKey("test-dashscope-key")
+
+    #expect(try store.loadDashScopeAPIKey() == "test-dashscope-key")
+    #expect(FileManager.default.fileExists(atPath: fileURL.path))
+}
+
 @Test func aliyunDNSFailureHasActionableHandshakeError() async throws {
     let transport = FakeAliyunWebSocketTransport(connectError: URLError(.cannotFindHost))
     let provider = AliyunRealtimeSTTProvider(

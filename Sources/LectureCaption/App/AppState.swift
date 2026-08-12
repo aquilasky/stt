@@ -53,6 +53,16 @@ final class AppState {
     func startSession() async {
         guard canStart else { return }
 
+        if !aliyunAPIKey.isEmpty {
+            do {
+                try LocalCredentialsStore.default.saveDashScopeAPIKey(aliyunAPIKey)
+                aliyunAPIKey = ""
+            } catch {
+                captureError = "无法保存阿里云 API Key。\n\(error.localizedDescription)"
+                return
+            }
+        }
+
         sessionGeneration += 1
         let generation = sessionGeneration
 
@@ -191,31 +201,11 @@ final class AppState {
             }
             return
         }
-        guard speechProvider == .aliyunRealtime else {
-            captureError = "MiMo 分块识别将在后续功能中接入。"
-            phase = .monitoringLocal
-            return
-        }
-
         let workspaceID = aliyunWorkspaceID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !workspaceID.isEmpty else {
             captureError = "请先填写阿里云 Workspace ID。"
             phase = .monitoringLocal
             return
-        }
-        if !aliyunAPIKey.isEmpty {
-            do {
-                try KeychainStore.save(
-                    aliyunAPIKey,
-                    service: "com.aquilasky.LectureCaption",
-                    account: "dashscope-api-key"
-                )
-                aliyunAPIKey = ""
-            } catch {
-                captureError = "无法保存阿里云 API Key。"
-                phase = .monitoringLocal
-                return
-            }
         }
         UserDefaults.standard.set(workspaceID, forKey: "aliyun-workspace-id")
         UserDefaults.standard.set(aliyunRegion.rawValue, forKey: "aliyun-region")

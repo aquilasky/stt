@@ -34,7 +34,7 @@ LectureCaption 是一款面向课堂、网课和教学视频的 macOS 实时字�
 - 会议摘要、知识库问答和课后智能分析。
 - 本地离线语音或翻译模型。
 - App Store 发布及沙盒上架适配。
-- 除阿里云百炼和 MiMo ASR 外的更多识别供应商适配。
+- MiMo 分块 ASR；该能力将在 MVP 验收完成后作为独立版本重新评估。
 - Intel Mac 性能优化。
 - 系统音频采集；在后续独立 feature 中重新评估。
 - 默认保存原始音频。
@@ -47,7 +47,7 @@ LectureCaption 是一款面向课堂、网课和教学视频的 macOS 实时字�
 4. **有序写回**：翻译请求可以异步执行，但必须按字幕段 ID 精确写回，不能依赖响应顺序。
 5. **故障可恢复**：网络中断时保留已有字幕和会话，明确显示连接状态，并允许自动或手动重连。
 6. **隐私最小化**：默认不落盘音频，不记录密钥、完整请求头或敏感 API 响应。
-7. **薄供应商抽象**：阿里云流式识别与 MiMo 分块识别统一输出字幕事件，但各自能力差异必须显式暴露，不能伪造一致的实时语义。
+7. **薄供应商抽象**：当前 MVP 只实现阿里云流式识别；后续供应商接入不得让网络协议渗透到音频层和 UI。
 8. **本地先行节流**：输入活动判断在本机完成，静音期间不持续占用云端识别任务；重新检测到输入后自动恢复。
 
 ## 3. 技术选型
@@ -59,13 +59,13 @@ LectureCaption 是一款面向课堂、网课和教学视频的 macOS 实时字�
 | 悬浮字幕窗 | AppKit `NSPanel` + SwiftUI | 支持置顶、无焦点干扰和多显示器 |
 | 麦克风采集 | `AVAudioEngine` | 使用输入节点 tap 获取音频帧 |
 | 音频转换 | `AVAudioConverter` | 转换为服务端要求的 PCM 格式 |
-| 云端 ASR | 阿里云百炼 + Xiaomi MiMo | 阿里云为默认实时模式；MiMo 为短音频分块模式 |
+| 云端 ASR | 阿里云百炼 | MVP 使用实时流式识别 |
 | 本地输入检测 | Accelerate `vDSP` + 自适应能量门 | 只判断是否有有效输入，不做本地转写 |
 | 文本翻译 | DeepSeek `deepseek-v4-flash` | 仅翻译已确认短句，关闭 thinking |
 | 网络层 | `URLSessionWebSocketTask`、`URLSession` | 分别处理 STT 实时流和 DeepSeek HTTPS 请求 |
 | 并发模型 | Swift Concurrency、Actor | 隔离音频、字幕和翻译状态 |
 | 本地存储 | SwiftData | 保存课程会话和字幕段 |
-| 密钥存储 | Keychain | 不写入 plist、UserDefaults 或日志 |
+| API Key 存储 | 本机明文 JSON | 位于 Application Support，文件不提交 Git、不写入日志 |
 | 日志 | `OSLog` | 使用分类日志并隐藏敏感字段 |
 | 导出 | Markdown、JSON | 输出完整双语课堂记录 |
 
@@ -82,7 +82,7 @@ MVP 使用 DeepSeek V4 Flash 作为文本翻译模型：
 - 推理模式：显式设置 `thinking.type=disabled`，避免默认思考模式增加字幕延迟。
 - 响应模式：MVP 使用非流式响应，便于处理超时、取消和严格的字幕段写回。
 - 客户端实现：Swift `URLSession`，不引入 OpenAI SDK。
-- 密钥存储：Keychain，建议 service 为应用 Bundle ID，account 为 `deepseek-api-key`。
+- 密钥存储：本机 `LocalCredentials.json`，不提交 Git。
 
 DeepSeek 只处理已经确认的文本短句，不接收音频、不参与原文修订，也不作为 STT 故障的降级转写服务。翻译服务不可用时继续显示和保存阿里云原文。
 
@@ -130,9 +130,9 @@ WebSocket 握手
 - [客户端事件](https://help.aliyun.com/zh/model-studio/fun-asr-client-events)
 - [服务端事件](https://help.aliyun.com/zh/model-studio/fun-asr-server-events)
 
-### 3.3 MiMo ASR 接入决策
+### 3.3 MiMo ASR（MVP 后评估）
 
-MVP 同时提供 Xiaomi MiMo ASR 作为可选识别 Provider：
+Xiaomi MiMo ASR 不纳入当前 MVP。完成 `1.0.0` 稳定性与完整验收后，再以独立 feature 评估以下方案：
 
 - Base URL：`https://api.xiaomimimo.com/v1`。
 - Endpoint：`POST /chat/completions`。
@@ -141,7 +141,7 @@ MVP 同时提供 Xiaomi MiMo ASR 作为可选识别 Provider：
 - 语言：`asr_options.language` 支持 `auto`、`zh`、`en`。
 - 鉴权：使用 MiMo API Key，按 OpenAI 兼容请求通过 Bearer Token 发送。
 - 客户端实现：Swift `URLSession`，本地将 PCM 分块封装为内存 WAV 后提交。
-- 密钥存储：Keychain，account 为 `mimo-api-key`。
+- 密钥存储：本机 `LocalCredentials.json`，不提交 Git。
 
 MiMo 接口不支持客户端持续上传 PCM。官方示例中的 `stream=true` 只控制文本响应的返回方式，不会把文件级 ASR 变成实时流式输入。因此它采用以下分块策略：
 
@@ -152,7 +152,7 @@ MiMo 接口不支持客户端持续上传 PCM。官方示例中的 `stream=true`
 - 分块只存在内存；请求结束后立即释放，默认不写入磁盘。
 - 会话结束、手动暂停或自动待机前，先 flush 尚有有效输入的尾块。
 
-MiMo 模式用于供应商对照、复杂噪声或方言场景，不作为第 12 节低延迟实时指标的默认验收 Provider。界面必须明确显示“MiMo 分块识别”，不能标记为“实时流式”。
+该方案用于供应商对照、复杂噪声或方言场景。未来界面必须明确显示“MiMo 分块识别”，不能标记为“实时流式”。
 
 参考文档：
 
@@ -167,9 +167,7 @@ flowchart LR
     D --> M["LocalActivityDetector<br/>预滚缓冲 / 自动待机"]
     M --> E["SpeechRecognitionProvider"]
     E --> E1["Aliyun WebSocket"]
-    E --> E2["MiMo WAV 分块"]
     E1 --> F["TranscriptStabilizer"]
-    E2 --> F
     F --> G["字幕状态"]
     F --> H["TranslationQueue"]
     H --> I["DeepSeek<br/>deepseek-v4-flash"]
@@ -185,7 +183,7 @@ flowchart LR
 2. 捕获层输出原始音频缓冲区。
 3. `AudioPipeline` 将其转换为单声道 PCM，同时送入本地活动检测器和预滚缓冲区。
 4. 检测到有效输入时，激活所选 ASR Provider，并先发送预滚音频再发送实时音频。
-5. 阿里云 Provider 持续发送 PCM；MiMo Provider 在本地封装短 WAV 块后提交。
+5. 阿里云 Provider 持续发送 PCM 并接收增量结果。
 6. 持续静音达到阈值时先 flush/结束远端任务，再进入本地待机；本地采集和活动检测继续运行。
 7. `TranscriptStabilizer` 只更新当前临时字幕；收到 final 后提交不可变字幕段。
 8. 已提交字幕立即保存，同时进入 `TranslationQueue`。
@@ -210,9 +208,6 @@ LectureCaption/
 │   ├── SpeechRecognitionProvider.swift
 │   ├── AliyunRealtimeSTTProvider.swift
 │   ├── AliyunSTTMessage.swift
-│   ├── MiMoChunkedSTTProvider.swift
-│   ├── MiMoASRMessage.swift
-│   ├── WAVEncoder.swift
 │   ├── TranscriptEvent.swift
 │   └── TranscriptStabilizer.swift
 ├── Translation/
@@ -337,7 +332,7 @@ manuallyPaused -> monitoringLocal（用户点击继续）
 处理规则：
 
 1. 本地采集启动后始终维护固定容量预滚环形缓冲区。
-2. 未检测到输入时不创建云端任务，也不提交 MiMo 音频块。
+2. 未检测到输入时不创建云端任务。
 3. 输入连续满足启动确认后，创建远端任务并先注入 800 ms 预滚音频。
 4. 短静音只用于断句/分块；累计静音达到自动待机阈值后结束远端任务。
 5. 自动待机期间继续以本地方式检测输入，不产生 ASR API 费用。
@@ -371,7 +366,7 @@ protocol SpeechRecognitionProvider: Sendable {
 }
 ```
 
-`SpeechProviderCapabilities` 显式声明 `supportsPartialResults`、`acceptsStreamingPCM`、`supportsVocabulary` 和 `supportedLanguages`，供 UI 和会话协调器决定可用设置。`SpeechConfiguration` 包含公共音频/语言设置及供应商配置枚举；阿里云配置持有 Workspace、热词和断句参数，MiMo 配置持有分块时长、重叠时长和语言。API Key 不进入配置值类型，由 Provider 从 Keychain 读取，且不得出现在错误描述中。
+`SpeechProviderCapabilities` 显式声明 `supportsPartialResults`、`acceptsStreamingPCM`、`supportsVocabulary` 和 `supportedLanguages`，供 UI 和会话协调器决定可用设置。`SpeechConfiguration` 包含公共音频/语言设置及供应商配置枚举；阿里云配置持有 Workspace、热词和断句参数。API Key 不进入配置值类型，由 Provider 从本机 `LocalCredentials.json` 读取，且不得出现在错误描述中。
 
 `AliyunRealtimeSTTProvider` 负责：
 
@@ -552,7 +547,7 @@ SwiftData 保存课堂会话和已确认字幕。建议采用增量保存：
 
 ### 6.9 Keychain 与日志
 
-- 阿里云百炼、MiMo 和 DeepSeek API Key 只存放在 Keychain，并分别使用 `dashscope-api-key`、`mimo-api-key` 与 `deepseek-api-key` account 标识。
+- 阿里云百炼与 DeepSeek API Key 只存放在本机 `~/Library/Application Support/LectureCaption/LocalCredentials.json`，不写入日志、导出或 Git。
 - 阿里云 Workspace ID 不是密钥，可存入 `UserDefaults`；但不得把它误用为 API Key 或写入鉴权 Header。
 - UI 中默认遮蔽密钥，仅提供替换和删除操作。
 - 禁止将密钥写入 `UserDefaults`、plist、SwiftData、导出文件和日志。
@@ -608,7 +603,7 @@ JSON 导出应包含完整会话元数据、术语表、字幕 ID、顺序、时
 主窗口包含：
 
 - 麦克风输入状态。
-- ASR Provider 选择：阿里云实时流式或 MiMo 分块识别。
+- ASR Provider：阿里云实时流式识别。
 - 课程名称、本节主题和术语表编辑。
 - 原文语言和目标语言选择。
 - 自动待机设置：关闭、15 秒、30 秒或 60 秒。
@@ -642,7 +637,6 @@ JSON 导出应包含完整会话元数据、术语表、字幕 ID、顺序、时
 | STT 限流 | 遵循服务端重试时间，暂停发送或重连 | 服务繁忙 |
 | 本地持续静音 | flush 并结束远端任务，本地检测继续 | 本地监听中 |
 | 本地重新检测到输入 | 创建新任务并发送预滚音频 | 正在恢复识别 |
-| MiMo 分块失败 | 标记该时间块失败，继续后续块 | 部分原文缺失警告 |
 | 翻译超时 | 标记当前段失败，继续后续任务 | 原文正常、译文缺失 |
 | 本地保存失败 | 保留内存内容并提示尽快导出 | 保存警告 |
 | 音频设备切换 | 重建采集链路 | 正在恢复音频 |
@@ -673,7 +667,7 @@ JSON 导出应包含完整会话元数据、术语表、字幕 ID、顺序、时
 
 验收：阿里云模式首段字幕约 1 秒内出现且已确认文字不反复变化；自动待机后已有字幕不丢失。
 
-MiMo `mimo-v2.5-asr` 短 WAV 分块 Provider 作为独立 feature 实现，不与阿里云实时 WebSocket 生命周期混入同一个 PR。
+MiMo `mimo-v2.5-asr` 短 WAV 分块 Provider 推迟至 MVP 完成后，以独立 feature 重新评估和实现，不与阿里云实时 WebSocket 生命周期混入同一个 PR。
 
 ### 阶段 3：翻译与专业上下文（2～3 天）
 
@@ -719,7 +713,6 @@ MiMo `mimo-v2.5-asr` 短 WAV 分块 Provider 作为独立 feature 实现，不�
 
 - PCM 格式转换、声道下混和固定时长切块。
 - RMS/dBFS 计算、自适应噪声底、滞回、自动待机计时和预滚环形缓冲。
-- MiMo WAV 内存封装、Base64 大小约束、静音块丢弃和重叠文本去重。
 - partial 替换、final 提交、重复 final 去重。
 - 翻译队列并发上限、超时和按 ID 写回。
 - 会话状态机的合法和非法转换。
@@ -730,7 +723,6 @@ MiMo `mimo-v2.5-asr` 短 WAV 分块 Provider 作为独立 feature 实现，不�
 
 - 使用录制好的测试音频驱动完整 STT 事件链路。
 - 使用模拟 WebSocket 验证断线、重连和重复事件。
-- 使用模拟 MiMo HTTP 服务验证分块、尾块 flush、乱序响应和单块失败。
 - 使用带静音区间的固定音频验证自动待机、预滚恢复和远端任务创建次数。
 - 使用模拟翻译服务验证超时、乱序、限流和错误响应。
 - 验证会话增量保存与异常恢复。
@@ -753,7 +745,6 @@ MiMo `mimo-v2.5-asr` 短 WAV 分块 Provider 作为独立 feature 实现，不�
 - 音频缓冲区深度和丢弃数量。
 - STT 首字延迟、final 延迟和重连次数。
 - 本地活动占空比、自动待机次数、误触发次数和云端任务活跃时长。
-- MiMo 分块数、平均分块时长、边界重复数和单块请求延迟。
 - 翻译排队时间、响应时间和失败率。
 - 字幕段重复率和丢失率。
 - 每 10 分钟的内存与 CPU 快照。
@@ -771,10 +762,10 @@ MiMo `mimo-v2.5-asr` 短 WAV 分块 Provider 作为独立 feature 实现，不�
 - 课程结束后可导出完整、有序的双语记录。
 - 字幕窗口不抢键盘焦点，并可在多显示器和全屏应用上正常使用。
 - 连续静音达到配置阈值后 2 秒内结束云端识别任务并进入本地待机。
-- 自动待机期间不发送阿里云音频或 MiMo 请求；声音恢复后自动继续并包含预滚音频。
+- 自动待机期间不发送阿里云音频；声音恢复后自动继续并包含预滚音频。
 - 手动暂停不会被本地声音自动解除。
 
-首字与 final 延迟指标默认以阿里云实时模式验收；MiMo 分块模式单独记录分块完成延迟，不要求满足 1.5 秒首字指标。性能验收应记录测试设备、系统版本、麦克风设备、网络环境、音频时长和所用 API，避免只凭主观感受判断。
+首字与 final 延迟指标以阿里云实时模式验收。性能验收应记录测试设备、系统版本、麦克风设备、网络环境、音频时长和所用 API，避免只凭主观感受判断。
 
 ## 13. 主要风险与对策
 
@@ -819,7 +810,7 @@ MiMo `mimo-v2.5-asr` 短 WAV 分块 Provider 作为独立 feature 实现，不�
 开发顺序必须保持为：
 
 ```text
-音频采集 -> 本地输入检测 -> 阿里云实时/MiMo 分块转写 -> 字幕稳定 -> 翻译 -> 字幕 UI -> 存储与导出 -> 稳定性测试
+音频采集 -> 本地输入检测 -> 阿里云实时转写 -> 字幕稳定 -> 翻译 -> 字幕 UI -> 存储与导出 -> 稳定性测试
 ```
 
 在音频连续采集和字幕稳定器通过验收前，不进入翻译和界面精修。首个可用版本只有在以下条件全部满足后才可发布给个人日常使用：
@@ -836,7 +827,7 @@ MiMo `mimo-v2.5-asr` 短 WAV 分块 Provider 作为独立 feature 实现，不�
 
 1. 阿里云百炼使用新加坡还是北京地域，以及对应 Workspace ID。
 2. 阿里云模型名是否固定为 `qwen-audio-3.0-asr-flash-streaming`。
-3. MiMo 是否仅作为实验 Provider，以及分块时长 4 秒/重叠 400 ms 是否需要开放设置。
+3. MVP 完成后是否引入 MiMo 作为实验 Provider，以及其分块时长和重叠时长是否需要开放设置。
 4. 自动待机默认 30 秒是否适合课堂场景，以及是否需要用户自定义阈值。
 5. 文本翻译超时、限流和费用上限。
 6. 源语言是固定英语、手动选择还是默认自动检测。
