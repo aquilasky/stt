@@ -1,0 +1,26 @@
+name: macOS CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    name: Build and test (macOS arm64)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Check whitespace
+        run: git diff --check HEAD^
+      - name: Run SwiftPM tests
+        run: swift test
+      - name: Build macOS app
+        run: >-
+          xcodebuild -project LectureCaption.xcodeproj
+          -scheme LectureCaption
+          -destination 'platform=macOS,arch=arm64'
+          build

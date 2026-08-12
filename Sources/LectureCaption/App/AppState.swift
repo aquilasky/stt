@@ -4,7 +4,6 @@ import Observation
 @MainActor
 @Observable
 final class AppState {
-    var inputSource: AudioInputSource = .microphone
     var speechProvider: SpeechProviderKind = .aliyunRealtime
     var sourceLanguage: RecognitionLanguage = .english
     var targetLanguage: TargetLanguage = .simplifiedChinese
@@ -14,8 +13,14 @@ final class AppState {
     var autoPauseInterval: TimeInterval? = 30
     var phase: SessionPhase = .idle
     var isInputActive = false
+    var inputLevelDBFS: Float = -96
+    var captureError: String?
     var activeSession: LectureSession?
     var captionSegments: [CaptionSegment] = []
+
+    @ObservationIgnored private let audioCaptureController = AudioCaptureController()
+    @ObservationIgnored private var silenceStartedAt: TimeInterval?
+    @ObservationIgnored private var sessionGeneration = 0
 
     var canStart: Bool {
         phase == .idle || phase == .completed
@@ -25,8 +30,11 @@ final class AppState {
         phase == .monitoringLocal || phase == .activatingProvider || phase == .recognizing || phase == .autoPaused
     }
 
-    func startSession() {
+    func startSession() async {
         guard canStart else { return }
+
+        sessionGeneration += 1
+        let generation = sessionGeneration
 
         activeSession = LectureSession(
             context: LectureContext(
@@ -36,12 +44,32 @@ final class AppState {
                 targetLanguage: targetLanguage,
                 glossary: glossary
             ),
-            inputSource: inputSource,
             provider: speechProvider
         )
         captionSegments = []
         isInputActive = false
+        inputLevelDBFS = -96
+        captureError = nil
+        silenceStartedAt = nil
         phase = .monitoringLocal
+
+        do {
+            let outputHandler: AudioCaptureController.OutputHandler = { [weak self] output in
+                guard let self, self.sessionGeneration == generation else { return }
+                self.receiveAudioPipelineOutput(output)
+            }
+            try await audioCaptureController.startMicrophone(onOutput: outputHandler)
+
+            guard generation == sessionGeneration, phase != .completed else {
+                audioCaptureController.stop()
+                return
+            }
+        } catch {
+            guard generation == sessionGeneration else { return }
+            captureError = error.localizedDescription
+            phase = .idle
+            activeSession = nil
+        }
     }
 
     func pauseSession() {
@@ -57,8 +85,11 @@ final class AppState {
 
     func stopSession() {
         guard phase != .idle && phase != .completed else { return }
+        sessionGeneration += 1
+        audioCaptureController.stop()
         activeSession?.endedAt = .now
         isInputActive = false
+        silenceStartedAt = nil
         phase = .completed
     }
 
@@ -87,6 +118,28 @@ final class AppState {
 
         isInputActive = false
         phase = .autoPaused
+    }
+
+    private func receiveAudioPipelineOutput(_ output: AudioCaptureUpdate) {
+        inputLevelDBFS = output.levelDBFS
+        receiveInputActivity(output.isInputActive)
+
+        guard phase == .recognizing else {
+            silenceStartedAt = nil
+            return
+        }
+
+        if output.isInputActive {
+            silenceStartedAt = nil
+            return
+        }
+
+        if silenceStartedAt == nil {
+            silenceStartedAt = output.endedAt
+        }
+        if let silenceStartedAt {
+            receiveSilence(elapsed: output.endedAt - silenceStartedAt)
+        }
     }
 
     func removeGlossaryEntry(id: UUID) {

@@ -1,0 +1,219 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+
+		A001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A002 /* LectureCaption.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LectureCaption.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A003 /* LectureCaptionTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LectureCaptionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+
+		A010 /* Sources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Sources/LectureCaption;
+			sourceTree = "<group>";
+		};
+		A011 /* Tests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Tests/LectureCaptionTests;
+			sourceTree = "<group>";
+		};
+		A012 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A001 /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		A013 = {
+			isa = PBXGroup;
+			children = (
+				A010 /* Sources */,
+				A011 /* Tests */,
+				A012 /* Resources */,
+				A014 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A014 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A002 /* LectureCaption.app */,
+				A003 /* LectureCaptionTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+
+		A020 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A021 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A022 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A023 /* Test Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A024 /* Test Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+
+		A030 /* LectureCaption */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A040 /* Build configuration list for PBXNativeTarget "LectureCaption" */;
+			buildPhases = (
+				A020 /* Sources */,
+				A021 /* Frameworks */,
+				A022 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			fileSystemSynchronizedGroups = (
+				A010 /* Sources */,
+			);
+			name = LectureCaption;
+			productName = LectureCaption;
+			productReference = A002 /* LectureCaption.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A031 /* LectureCaptionTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A041 /* Build configuration list for PBXNativeTarget "LectureCaptionTests" */;
+			buildPhases = (
+				A023 /* Test Sources */,
+				A024 /* Test Frameworks */,
+			);
+			buildRules = ();
+			dependencies = (
+				A060 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A011 /* Tests */,
+			);
+			name = LectureCaptionTests;
+			productName = LectureCaptionTests;
+			productReference = A003 /* LectureCaptionTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+
+		A050 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					A030 = { CreatedOnToolsVersion = 26.6; };
+					A031 = { CreatedOnToolsVersion = 26.6; TestTargetID = A030; };
+				};
+			};
+			buildConfigurationList = A042 /* Build configuration list for PBXProject "LectureCaption" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = A013;
+			productRefGroup = A014 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A030 /* LectureCaption */,
+				A031 /* LectureCaptionTests */,
+			);
+		};
+
+		A060 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A030 /* LectureCaption */; targetProxy = A061 /* PBXContainerItemProxy */; };
+		A061 /* PBXContainerItemProxy */ = {isa = PBXContainerItemProxy; containerPortal = A050 /* Project object */; proxyType = 1; remoteGlobalIDString = A030; remoteInfo = LectureCaption; };
+
+		A070 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A071 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		A072 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aquilasky.LectureCaption;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A073 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aquilasky.LectureCaption;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		A074 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aquilasky.LectureCaptionTests;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LectureCaption.app/Contents/MacOS/LectureCaption";
+			};
+			name = Debug;
+		};
+		A075 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aquilasky.LectureCaptionTests;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LectureCaption.app/Contents/MacOS/LectureCaption";
+			};
+			name = Release;
+		};
+
+		A040 /* Build configuration list for PBXNativeTarget "LectureCaption" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (A072 /* Debug */, A073 /* Release */);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A041 /* Build configuration list for PBXNativeTarget "LectureCaptionTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (A074 /* Debug */, A075 /* Release */);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A042 /* Build configuration list for PBXProject "LectureCaption" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (A070 /* Debug */, A071 /* Release */);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+	};
+	rootObject = A050 /* Project object */;
+}

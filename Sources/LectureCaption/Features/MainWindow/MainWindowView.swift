@@ -19,10 +19,25 @@ struct MainWindowView: View {
                     .frame(minWidth: 500, maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .alert(
+            "无法开始采集",
+            isPresented: Binding(
+                get: { appState.captureError != nil },
+                set: { if !$0 { appState.captureError = nil } }
+            )
+        ) {
+            Button("好", role: .cancel) {
+                appState.captureError = nil
+            }
+        } message: {
+            Text(appState.captureError ?? "")
+        }
         .frame(minWidth: 900, minHeight: 620)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button(action: appState.startSession) {
+                Button {
+                    Task { await appState.startSession() }
+                } label: {
                     Label("开始", systemImage: "play.fill")
                 }
                 .disabled(!appState.canStart)
@@ -56,6 +71,10 @@ struct MainWindowView: View {
             Label(appState.isInputActive ? "检测到输入" : "本地监听", systemImage: appState.isInputActive ? "waveform" : "ear")
                 .foregroundStyle(.secondary)
 
+            Text("\(Int(appState.inputLevelDBFS.rounded())) dBFS")
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+
             Spacer()
 
             Label(appState.speechProvider.title, systemImage: appState.speechProvider.symbolName)
@@ -64,17 +83,12 @@ struct MainWindowView: View {
         .font(.callout)
         .padding(.horizontal, 18)
         .frame(height: 44)
+        .help(appState.captureError ?? "")
     }
 
     private var setupPane: some View {
         Form {
             Section("会话") {
-                Picker("输入", selection: $appState.inputSource) {
-                    ForEach(AudioInputSource.allCases) { source in
-                        Text(source.title).tag(source)
-                    }
-                }
-
                 Picker("识别", selection: $appState.speechProvider) {
                     ForEach(SpeechProviderKind.allCases) { provider in
                         Text(provider.title).tag(provider)

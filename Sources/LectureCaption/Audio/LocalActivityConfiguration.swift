@@ -1,19 +1,5 @@
 import Foundation
 
-enum AudioInputSource: String, CaseIterable, Identifiable, Codable, Sendable {
-    case microphone
-    case systemAudio
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .microphone: "麦克风"
-        case .systemAudio: "系统音频"
-        }
-    }
-}
-
 struct LocalActivityConfiguration: Equatable, Sendable {
     var analysisWindow: TimeInterval = 0.02
     var activationHold: TimeInterval = 0.2
@@ -21,6 +7,9 @@ struct LocalActivityConfiguration: Equatable, Sendable {
     var preRoll: TimeInterval = 0.8
     var activationAboveNoiseFloor: Float = 12
     var releaseAboveNoiseFloor: Float = 6
+    var stableNoiseHold: TimeInterval = 2
+    var stableNoiseToleranceDB: Float = 2
+    var maximumAdaptiveNoiseDBFS: Float = -35
 }
 
 enum AutoPauseOption: String, CaseIterable, Identifiable {
