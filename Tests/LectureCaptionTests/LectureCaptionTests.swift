@@ -321,7 +321,10 @@ import Testing
     let translation = try await provider.translate(TranslationRequest(
         segmentID: UUID(),
         sourceText: "The learning rate controls the size of each optimization step.",
-        recentContext: ["We optimize the objective."],
+        recentContext: [TranslationContextSegment(
+            sourceText: "We optimize the objective.",
+            translatedText: "我们优化目标函数。"
+        )],
         courseName: "Machine Learning",
         topic: "Optimization",
         glossary: [GlossaryEntry(source: "learning rate", target: "学习率")],
@@ -338,9 +341,12 @@ import Testing
     #expect(root["stream"] as? Bool == false)
     #expect((root["thinking"] as? [String: String])?["type"] == "disabled")
     let messages = try #require(root["messages"] as? [[String: String]])
-    #expect(messages.count == 2)
-    #expect(messages[1]["content"]?.contains("learning rate=学习率") == true)
-    #expect(messages[1]["content"]?.contains("We optimize the objective.") == true)
+    #expect(messages.count == 4)
+    #expect(messages[0]["content"]?.contains("learning rate=学习率") == true)
+    #expect(messages[1]["content"] == "上文原文：We optimize the objective.")
+    #expect(messages[2]["role"] == "assistant")
+    #expect(messages[2]["content"] == "我们优化目标函数。")
+    #expect(messages[3]["content"] == "当前原文：The learning rate controls the size of each optimization step.")
 }
 
 @Test func deepSeekProviderRetriesWithoutCourseContextAfterContextRejection() async throws {
@@ -357,7 +363,7 @@ import Testing
     let translation = try await provider.translate(TranslationRequest(
         segmentID: UUID(),
         sourceText: "Translate this sentence.",
-        recentContext: ["Earlier sentence."],
+        recentContext: [TranslationContextSegment(sourceText: "Earlier sentence.", translatedText: nil)],
         courseName: "A course title",
         topic: "A topic",
         glossary: [GlossaryEntry(source: "sentence", target: "句子")],
@@ -368,10 +374,11 @@ import Testing
     #expect(translation == "课程上下文未随请求失败。")
     let requests = await transport.requests
     #expect(requests.count == 2)
-    let firstContent = try #require(messageContent(from: requests[0]))
-    let retryContent = try #require(messageContent(from: requests[1]))
-    #expect(firstContent.contains("课程：A course title"))
-    #expect(retryContent == "待翻译：Translate this sentence.")
+    let firstMessages = try #require(messages(from: requests[0]))
+    let retryMessages = try #require(messages(from: requests[1]))
+    #expect(firstMessages[0]["content"]?.contains("课程：A course title") == true)
+    #expect(retryMessages.count == 2)
+    #expect(retryMessages[1]["content"] == "当前原文：Translate this sentence.")
 }
 
 @Test func deepSeekProviderBoundsCourseContext() async throws {
@@ -396,7 +403,8 @@ import Testing
     ))
 
     let request = try #require(await transport.requests.first)
-    let content = try #require(messageContent(from: request))
+    let requestMessages = try #require(messages(from: request))
+    let content = try #require(requestMessages.first?["content"])
     #expect(content.contains("课程：" + String(repeating: "c", count: 160)))
     #expect(!content.contains(String(repeating: "c", count: 161)))
     #expect(content.contains("主题：" + String(repeating: "t", count: 240)))
@@ -673,14 +681,13 @@ private actor FakeDeepSeekHTTPTransport: DeepSeekHTTPTransport {
     }
 }
 
-private func messageContent(from request: URLRequest) -> String? {
+private func messages(from request: URLRequest) -> [[String: String]]? {
     guard let body = request.httpBody,
           let root = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-          let messages = root["messages"] as? [[String: String]],
-          messages.count > 1 else {
+          let messages = root["messages"] as? [[String: String]] else {
         return nil
     }
-    return messages[1]["content"]
+    return messages
 }
 
 private actor FakeTranslationProvider: TranslationProvider {

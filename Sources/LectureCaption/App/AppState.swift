@@ -529,8 +529,8 @@ final class AppState {
             captionSegments[index].state = .translating
             let recentContext = confirmedSegments
                 .filter { $0.sequence < segment.sequence }
-                .suffix(4)
-                .map(\.sourceText)
+                .suffix(6)
+                .map { TranslationContextSegment(sourceText: $0.sourceText, translatedText: $0.translatedText) }
             requests.append(TranslationRequest(
                 segmentID: segment.id,
                 sourceText: segment.sourceText,

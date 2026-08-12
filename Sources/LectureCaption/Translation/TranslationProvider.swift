@@ -3,12 +3,17 @@ import Foundation
 struct TranslationRequest: Sendable {
     let segmentID: UUID
     let sourceText: String
-    let recentContext: [String]
+    let recentContext: [TranslationContextSegment]
     let courseName: String
     let topic: String
     let glossary: [GlossaryEntry]
     let sourceLanguage: RecognitionLanguage
     let targetLanguage: TargetLanguage
+}
+
+struct TranslationContextSegment: Sendable {
+    let sourceText: String
+    let translatedText: String?
 }
 
 protocol TranslationProvider: Sendable {
