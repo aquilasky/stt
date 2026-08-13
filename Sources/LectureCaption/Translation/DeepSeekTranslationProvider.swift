@@ -85,10 +85,7 @@ struct DeepSeekTranslationProvider: TranslationProvider {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.httpBody = try JSONEncoder().encode(DeepSeekRequest(
             model: settings.model,
-            messages: [
-                ChatMessage(role: "system", content: systemPrompt(target: request.targetLanguage)),
-                ChatMessage(role: "user", content: prompt(for: request, includeContext: includeContext))
-            ]
+            messages: messages(for: request, includeContext: includeContext)
         ))
 
         let (data, response) = try await transport.perform(urlRequest)
@@ -104,22 +101,33 @@ struct DeepSeekTranslationProvider: TranslationProvider {
     }
 
     private func systemPrompt(target: TargetLanguage) -> String {
-        "你是课堂字幕翻译器。只输出待翻译句子的\(target.title)译文。遵守术语表，不解释，不总结。"
+        "你是课堂字幕翻译器。只输出当前句子的\(target.title)译文。可根据连续上下文调整语序、指代和省略，使译文自然连贯；必须保留原意和术语表，不补充事实，不解释，不总结。"
     }
 
-    private func prompt(for request: TranslationRequest, includeContext: Bool) -> String {
+    private func messages(for request: TranslationRequest, includeContext: Bool) -> [ChatMessage] {
         guard includeContext else {
-            return "待翻译：\(bounded(request.sourceText, maximumLength: 2_000))"
+            return [
+                ChatMessage(role: "system", content: systemPrompt(target: request.targetLanguage)),
+                ChatMessage(role: "user", content: "当前原文：\(bounded(request.sourceText, maximumLength: 2_000))")
+            ]
         }
 
         let glossary = request.glossary.prefix(40)
             .filter { !$0.source.isEmpty && !$0.target.isEmpty }
             .map { "\(bounded($0.source, maximumLength: 120))=\(bounded($0.target, maximumLength: 120))" }
             .joined(separator: "；")
-        let context = request.recentContext.suffix(4)
-            .map { bounded($0, maximumLength: 800) }
-            .joined(separator: "\n")
-        return "课程：\(bounded(request.courseName, maximumLength: 160))\n主题：\(bounded(request.topic, maximumLength: 240))\n原文语言：\(request.sourceLanguage.title)\n术语：\(glossary)\n上下文：\(context)\n待翻译：\(bounded(request.sourceText, maximumLength: 2_000))"
+        var messages = [ChatMessage(
+            role: "system",
+            content: "\(systemPrompt(target: request.targetLanguage))\n课程：\(bounded(request.courseName, maximumLength: 160))\n主题：\(bounded(request.topic, maximumLength: 240))\n原文语言：\(request.sourceLanguage.title)\n术语：\(glossary)"
+        )]
+        for segment in request.recentContext.suffix(6) {
+            messages.append(ChatMessage(role: "user", content: "上文原文：\(bounded(segment.sourceText, maximumLength: 600))"))
+            if let translation = segment.translatedText, !translation.isEmpty {
+                messages.append(ChatMessage(role: "assistant", content: bounded(translation, maximumLength: 800)))
+            }
+        }
+        messages.append(ChatMessage(role: "user", content: "当前原文：\(bounded(request.sourceText, maximumLength: 2_000))"))
+        return messages
     }
 
     private func bounded(_ value: String, maximumLength: Int) -> String {

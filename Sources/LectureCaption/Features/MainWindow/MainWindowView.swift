@@ -2,22 +2,19 @@ import SwiftUI
 
 struct MainWindowView: View {
     @Bindable var appState: AppState
-
-    @State private var newTerm = ""
-    @State private var newTranslation = ""
+    @State private var showsConfiguration = false
+    @State private var showsHistory = false
 
     var body: some View {
         VStack(spacing: 0) {
             controlStrip
             Divider()
 
-            HSplitView {
-                setupPane
-                    .frame(minWidth: 330, idealWidth: 360, maxWidth: 420)
-
-                CaptionPreviewView(segments: appState.captionSegments)
-                    .frame(minWidth: 500, maxWidth: .infinity, maxHeight: .infinity)
-            }
+            CaptionPreviewView(
+                segments: appState.captionSegments,
+                fontSize: appState.captionFontSize
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .alert(
             "无法开始采集",
@@ -52,11 +49,49 @@ struct MainWindowView: View {
                 }
                 .disabled(appState.phase != .manuallyPaused)
 
-                Button(action: appState.stopSession) {
+                Button {
+                    Task { await appState.stopSession() }
+                } label: {
                     Label("结束", systemImage: "stop.fill")
                 }
                 .disabled(appState.phase == .idle || appState.phase == .completed)
+
+                Button(action: appState.saveCurrentSession) {
+                    Label("保存记录", systemImage: "tray.and.arrow.down")
+                }
+                .disabled(appState.captionSegments.allSatisfy { $0.state == .provisional })
+
+                Menu {
+                    Button {
+                        showsConfiguration = true
+                    } label: {
+                        Label("课程与识别配置", systemImage: "slider.horizontal.3")
+                    }
+                    Button {
+                        showsHistory = true
+                    } label: {
+                        Label("本地课堂记录", systemImage: "clock.arrow.circlepath")
+                    }
+                } label: {
+                    Label("更多", systemImage: "ellipsis.circle")
+                }
+
+                Button(action: appState.decreaseCaptionFontSize) {
+                    Label("减小字幕字号", systemImage: "textformat.size.smaller")
+                }
+                .disabled(!appState.canDecreaseCaptionFontSize)
+
+                Button(action: appState.increaseCaptionFontSize) {
+                    Label("增大字幕字号", systemImage: "textformat.size.larger")
+                }
+                .disabled(!appState.canIncreaseCaptionFontSize)
             }
+        }
+        .sheet(isPresented: $showsConfiguration) {
+            ConfigurationView(appState: appState)
+        }
+        .sheet(isPresented: $showsHistory) {
+            SessionHistoryView(appState: appState)
         }
     }
 
@@ -86,7 +121,31 @@ struct MainWindowView: View {
         .help(appState.captureError ?? "")
     }
 
-    private var setupPane: some View {
+}
+
+private struct ConfigurationView: View {
+    @Bindable var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var newTerm = ""
+    @State private var newTranslation = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("课程与识别配置")
+                    .font(.headline)
+                Spacer()
+                Button("完成") { dismiss() }
+            }
+            .padding()
+            Divider()
+
+            configurationForm
+        }
+        .frame(width: 500, height: 680)
+    }
+
+    private var configurationForm: some View {
         Form {
             Section("会话") {
                 Picker("识别", selection: $appState.speechProvider) {

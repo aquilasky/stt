@@ -206,6 +206,112 @@ import Testing
     #expect(try store.loadDeepSeekAPIKey() == "deepseek-key")
 }
 
+@Test func localSessionHistoryStorePersistsCompleteSessionAndReplacesSameID() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = LocalSessionHistoryStore(fileURL: directory.appendingPathComponent("Sessions.json"))
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let session = LectureSession(
+        context: LectureContext(
+            courseName: "Machine Learning",
+            topic: "Optimization",
+            sourceLanguage: .english,
+            targetLanguage: .simplifiedChinese,
+            glossary: []
+        ),
+        provider: .aliyunRealtime
+    )
+    let first = CaptionSegment(
+        sequence: 0,
+        sourceText: "The learning rate controls the step size.",
+        translatedText: "学习率控制步长。",
+        startedAt: 2,
+        endedAt: 5,
+        state: .completed
+    )
+    let second = CaptionSegment(
+        sequence: 1,
+        sourceText: "We will now optimize the objective.",
+        startedAt: 6,
+        endedAt: 8,
+        state: .translationFailed
+    )
+
+    let initial = try store.save(SavedLectureSession(session: session, segments: [first, second]))
+    #expect(initial.count == 1)
+    let reloaded = try store.load()
+    #expect(reloaded.count == 1)
+    #expect(reloaded[0].id == session.id)
+    #expect(reloaded[0].segments.map(\.sourceText) == [first.sourceText, second.sourceText])
+    #expect(reloaded[0].segments[0].translatedText == first.translatedText)
+
+    let replacement = try store.save(SavedLectureSession(session: session, segments: [first]))
+    #expect(replacement.count == 1)
+    #expect(replacement[0].segments.count == 1)
+    #expect(try store.remove(id: session.id).isEmpty)
+}
+
+@Test func localSessionHistoryWriterCoalescesRapidSessionSnapshots() async throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = LocalSessionHistoryStore(fileURL: directory.appendingPathComponent("Sessions.json"))
+    let writer = LocalSessionHistoryWriter(store: store)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let session = LectureSession(
+        context: LectureContext(
+            courseName: "Algorithms",
+            topic: "Sorting",
+            sourceLanguage: .english,
+            targetLanguage: .simplifiedChinese,
+            glossary: []
+        ),
+        provider: .aliyunRealtime
+    )
+    let first = CaptionSegment(sequence: 0, sourceText: "First", startedAt: 0, state: .committed)
+    let second = CaptionSegment(sequence: 1, sourceText: "Second", startedAt: 1, state: .completed)
+
+    await writer.submit(SavedLectureSession(session: session, segments: [first]), revision: 1)
+    await writer.submit(SavedLectureSession(session: session, segments: [first, second]), revision: 2)
+    try await waitUntil(timeout: .seconds(2)) {
+        (try? store.load().count) == 1
+    }
+
+    let records = try store.load()
+    let record = try #require(records.first)
+    #expect(records.count == 1)
+    #expect(record.segments.map(\.sourceText) == ["First", "Second"])
+}
+
+@Test func localSessionHistoryWriterFlushesPendingSnapshotImmediately() async throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = LocalSessionHistoryStore(fileURL: directory.appendingPathComponent("Sessions.json"))
+    let writer = LocalSessionHistoryWriter(store: store)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let session = LectureSession(
+        context: LectureContext(
+            courseName: "Databases",
+            topic: "Indexes",
+            sourceLanguage: .english,
+            targetLanguage: .simplifiedChinese,
+            glossary: []
+        ),
+        provider: .aliyunRealtime
+    )
+    let segment = CaptionSegment(sequence: 0, sourceText: "Final record", startedAt: 0, state: .committed)
+
+    await writer.submit(SavedLectureSession(session: session, segments: [segment]), revision: 1)
+    try await writer.flush()
+
+    let records = try store.load()
+    #expect(records.count == 1)
+    #expect(records[0].id == session.id)
+    #expect(records[0].segments.first?.sourceText == "Final record")
+}
+
 @Test func deepSeekProviderBuildsNonThinkingTranslationRequest() async throws {
     let transport = FakeDeepSeekHTTPTransport(responses: [
         .success("{\"choices\":[{\"message\":{\"content\":\"学习率控制每一步优化的步长。\"}}]}")
@@ -218,7 +324,10 @@ import Testing
     let translation = try await provider.translate(TranslationRequest(
         segmentID: UUID(),
         sourceText: "The learning rate controls the size of each optimization step.",
-        recentContext: ["We optimize the objective."],
+        recentContext: [TranslationContextSegment(
+            sourceText: "We optimize the objective.",
+            translatedText: "我们优化目标函数。"
+        )],
         courseName: "Machine Learning",
         topic: "Optimization",
         glossary: [GlossaryEntry(source: "learning rate", target: "学习率")],
@@ -235,9 +344,12 @@ import Testing
     #expect(root["stream"] as? Bool == false)
     #expect((root["thinking"] as? [String: String])?["type"] == "disabled")
     let messages = try #require(root["messages"] as? [[String: String]])
-    #expect(messages.count == 2)
-    #expect(messages[1]["content"]?.contains("learning rate=学习率") == true)
-    #expect(messages[1]["content"]?.contains("We optimize the objective.") == true)
+    #expect(messages.count == 4)
+    #expect(messages[0]["content"]?.contains("learning rate=学习率") == true)
+    #expect(messages[1]["content"] == "上文原文：We optimize the objective.")
+    #expect(messages[2]["role"] == "assistant")
+    #expect(messages[2]["content"] == "我们优化目标函数。")
+    #expect(messages[3]["content"] == "当前原文：The learning rate controls the size of each optimization step.")
 }
 
 @Test func deepSeekProviderRetriesWithoutCourseContextAfterContextRejection() async throws {
@@ -254,7 +366,7 @@ import Testing
     let translation = try await provider.translate(TranslationRequest(
         segmentID: UUID(),
         sourceText: "Translate this sentence.",
-        recentContext: ["Earlier sentence."],
+        recentContext: [TranslationContextSegment(sourceText: "Earlier sentence.", translatedText: nil)],
         courseName: "A course title",
         topic: "A topic",
         glossary: [GlossaryEntry(source: "sentence", target: "句子")],
@@ -265,10 +377,11 @@ import Testing
     #expect(translation == "课程上下文未随请求失败。")
     let requests = await transport.requests
     #expect(requests.count == 2)
-    let firstContent = try #require(messageContent(from: requests[0]))
-    let retryContent = try #require(messageContent(from: requests[1]))
-    #expect(firstContent.contains("课程：A course title"))
-    #expect(retryContent == "待翻译：Translate this sentence.")
+    let firstMessages = try #require(messages(from: requests[0]))
+    let retryMessages = try #require(messages(from: requests[1]))
+    #expect(firstMessages[0]["content"]?.contains("课程：A course title") == true)
+    #expect(retryMessages.count == 2)
+    #expect(retryMessages[1]["content"] == "当前原文：Translate this sentence.")
 }
 
 @Test func deepSeekProviderBoundsCourseContext() async throws {
@@ -293,7 +406,8 @@ import Testing
     ))
 
     let request = try #require(await transport.requests.first)
-    let content = try #require(messageContent(from: request))
+    let requestMessages = try #require(messages(from: request))
+    let content = try #require(requestMessages.first?["content"])
     #expect(content.contains("课程：" + String(repeating: "c", count: 160)))
     #expect(!content.contains(String(repeating: "c", count: 161)))
     #expect(content.contains("主题：" + String(repeating: "t", count: 240)))
@@ -331,6 +445,25 @@ import Testing
     #expect(await iterator.next() == .translated(segmentID: firstID, text: "first translation"))
     #expect(await iterator.next() == .translated(segmentID: secondID, text: "second translation"))
     #expect(await provider.receivedSegmentIDs == [firstID, secondID])
+}
+
+@Test func replacementTranslationQueueDeliversEventsToNewSessionListener() async throws {
+    let oldQueue = TranslationQueue(provider: FakeTranslationProvider(results: [.success("old")]))
+    let oldEvents = oldQueue.events()
+    let oldListener = Task {
+        var iterator = oldEvents.makeAsyncIterator()
+        return await iterator.next()
+    }
+    await oldQueue.cancelAll()
+    oldListener.cancel()
+
+    let newQueue = TranslationQueue(provider: FakeTranslationProvider(results: [.success("new")]))
+    let newEvents = newQueue.events()
+    let segmentID = UUID()
+    await newQueue.enqueue(translationRequest(id: segmentID, source: "new source"))
+
+    var iterator = newEvents.makeAsyncIterator()
+    #expect(await iterator.next() == .translated(segmentID: segmentID, text: "new"))
 }
 
 @Test func aliyunDNSFailureHasActionableHandshakeError() async throws {
@@ -570,14 +703,13 @@ private actor FakeDeepSeekHTTPTransport: DeepSeekHTTPTransport {
     }
 }
 
-private func messageContent(from request: URLRequest) -> String? {
+private func messages(from request: URLRequest) -> [[String: String]]? {
     guard let body = request.httpBody,
           let root = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-          let messages = root["messages"] as? [[String: String]],
-          messages.count > 1 else {
+          let messages = root["messages"] as? [[String: String]] else {
         return nil
     }
-    return messages[1]["content"]
+    return messages
 }
 
 private actor FakeTranslationProvider: TranslationProvider {
