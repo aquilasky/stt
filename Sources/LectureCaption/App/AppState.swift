@@ -28,6 +28,10 @@ final class AppState {
     var activeSession: LectureSession?
     var captionSegments: [CaptionSegment] = []
     var captionFontSize: CGFloat = 18
+    var isFloatingCaptionVisible = false
+    var floatingCaptionDisplayMode: FloatingCaptionDisplayMode = .bilingual
+    var floatingCaptionFontSize: CGFloat = 20
+    var floatingCaptionBackgroundOpacity = 0.78
     var savedSessions: [SavedLectureSession] = []
 
     @ObservationIgnored private let audioCaptureController = AudioCaptureController()
@@ -85,6 +89,20 @@ final class AppState {
 
     func increaseCaptionFontSize() {
         captionFontSize = min(Self.maximumCaptionFontSize, captionFontSize + Self.captionFontSizeStep)
+    }
+
+    func decreaseFloatingCaptionFontSize() {
+        floatingCaptionFontSize = max(
+            Self.minimumFloatingCaptionFontSize,
+            floatingCaptionFontSize - Self.floatingCaptionFontSizeStep
+        )
+    }
+
+    func increaseFloatingCaptionFontSize() {
+        floatingCaptionFontSize = min(
+            Self.maximumFloatingCaptionFontSize,
+            floatingCaptionFontSize + Self.floatingCaptionFontSizeStep
+        )
     }
 
     func startSession() async {
@@ -508,6 +526,9 @@ final class AppState {
     private static let minimumCaptionFontSize: CGFloat = 14
     private static let maximumCaptionFontSize: CGFloat = 30
     private static let captionFontSizeStep: CGFloat = 2
+    private static let minimumFloatingCaptionFontSize: CGFloat = 14
+    private static let maximumFloatingCaptionFontSize: CGFloat = 30
+    private static let floatingCaptionFontSizeStep: CGFloat = 2
 
     private func startTranslationEventHandling(queue: TranslationQueue, generation: Int) {
         translationEventsTask?.cancel()

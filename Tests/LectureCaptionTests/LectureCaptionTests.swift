@@ -70,6 +70,30 @@ import Testing
     ))
 }
 
+@Test func floatingCaptionDisplayModesKeepTheLatestRelevantSegments() {
+    let segments = (0..<6).map { index in
+        CaptionSegment(
+            sequence: index,
+            sourceText: "source \(index)",
+            translatedText: index.isMultiple(of: 2) ? "translation \(index)" : nil,
+            startedAt: TimeInterval(index),
+            state: index == 5 ? .provisional : .completed
+        )
+    }
+
+    #expect(FloatingCaptionDisplayMode.bilingual.visibleSegments(from: segments).map(\.sequence) == [3, 4, 5])
+    #expect(FloatingCaptionDisplayMode.sourceOnly.visibleSegments(from: segments).map(\.sequence) == [3, 4, 5])
+    #expect(FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments).map(\.sequence) == [0, 2, 4])
+}
+
+@Test func floatingCaptionCollectionBehaviorUsesCompatibleSpaceOptions() {
+    let behavior = FloatingCaptionWindowBehavior.collectionBehavior
+
+    #expect(behavior.contains(.canJoinAllSpaces))
+    #expect(behavior.contains(.fullScreenAuxiliary))
+    #expect(!behavior.contains(.moveToActiveSpace))
+}
+
 @Test func chunkerEmitsFixedDurationFramesAndFlushesRemainder() {
     var chunker = PCM16Chunker(sampleRate: 16_000, chunkDuration: 0.04)
     let input = PCM16Frame(

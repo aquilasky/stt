@@ -4,6 +4,7 @@ struct MainWindowView: View {
     @Bindable var appState: AppState
     @State private var showsConfiguration = false
     @State private var showsHistory = false
+    @State private var floatingCaptionController = FloatingCaptionWindowController()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -61,6 +62,11 @@ struct MainWindowView: View {
                 }
                 .disabled(appState.captionSegments.allSatisfy { $0.state == .provisional })
 
+                Toggle(isOn: $appState.isFloatingCaptionVisible) {
+                    Label("悬浮字幕", systemImage: "rectangle.on.rectangle")
+                }
+                .help("显示或隐藏悬浮字幕")
+
                 Menu {
                     Button {
                         showsConfiguration = true
@@ -92,6 +98,9 @@ struct MainWindowView: View {
         }
         .sheet(isPresented: $showsHistory) {
             SessionHistoryView(appState: appState)
+        }
+        .onChange(of: appState.isFloatingCaptionVisible, initial: true) { _, isVisible in
+            floatingCaptionController.setVisible(isVisible, appState: appState)
         }
     }
 
