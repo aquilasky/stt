@@ -152,7 +152,8 @@ xcodebuild -project LectureCaption.xcodeproj \
 2. 观察 Dock 是否出现 `LectureCaption` 图标，并确认主窗口位于当前桌面且获得焦点。
 3. 切换到另一个应用，再点击 Dock 中的 `LectureCaption` 图标。
 4. 打开任务视图，选择 `LectureCaption` 主窗口。
-5. 结束应用，确认 Dock 图标随进程退出而消失。
+5. 切换到另一个桌面，再回到 `LectureCaption` 所在桌面；重复一次从 Dock 激活应用。
+6. 结束应用，确认 Dock 图标随进程退出而消失。
 
 输入：Command-R、Dock 图标点击和任务视图中的主窗口点击。
 
@@ -160,7 +161,8 @@ xcodebuild -project LectureCaption.xcodeproj \
 
 - 应用运行时 Dock 显示 `LectureCaption` 图标。
 - 从 Dock 或任务视图选择窗口后，窗口在当前桌面前置并获得键盘焦点。
-- 不需要将窗口拖动到其他桌面，也不会因激活而创建或切换到新的桌面。
+- 桌面切换不会把主窗口移动到其他桌面或使其无故落后于同一桌面的其他窗口；从 Dock 激活后主窗口重新前置并获得键盘焦点。
+- 不会因启动、桌面切换或激活而创建或切换到新的桌面。
 
 ## 5. 后续 Feature 手工测试
 

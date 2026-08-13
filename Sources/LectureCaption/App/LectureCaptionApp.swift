@@ -28,7 +28,7 @@ private enum WindowVisibilityController {
         guard !hasAttemptedRestoration else { return }
         hasAttemptedRestoration = true
 
-        guard let window = NSApp.windows.first(where: { $0.styleMask.contains(.titled) }) else {
+        guard let window = mainWindow else {
             return
         }
 
@@ -43,9 +43,28 @@ private enum WindowVisibilityController {
             window.setFrameOrigin(origin)
         }
 
-        window.collectionBehavior.insert(.moveToActiveSpace)
+        window.collectionBehavior = MainWindowSpaceBehavior.standardized(window.collectionBehavior)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    static func restoreMainWindowAfterActivationIfNeeded() {
+        guard MainWindowSpaceBehavior.shouldRestoreAfterActivation(
+            hasKeyWindow: NSApp.keyWindow != nil,
+            mainWindowIsVisible: mainWindow?.isVisible ?? false
+        ),
+              let window = mainWindow,
+              window.isVisible else {
+            return
+        }
+
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    private static var mainWindow: NSWindow? {
+        NSApp.windows.first {
+            $0.styleMask.contains(.titled) && !($0 is NSPanel)
+        }
     }
 
     private static func hasVisibleTitleBar(_ window: NSWindow) -> Bool {
@@ -65,10 +84,29 @@ private enum WindowVisibilityController {
     }
 }
 
+enum MainWindowSpaceBehavior {
+    static func standardized(_ behavior: NSWindow.CollectionBehavior) -> NSWindow.CollectionBehavior {
+        behavior.subtracting(.moveToActiveSpace)
+    }
+
+    static func shouldRestoreAfterActivation(
+        hasKeyWindow: Bool,
+        mainWindowIsVisible: Bool
+    ) -> Bool {
+        !hasKeyWindow && mainWindowIsVisible
+    }
+}
+
 @MainActor
 private final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        DispatchQueue.main.async {
+            WindowVisibilityController.restoreMainWindowAfterActivationIfNeeded()
+        }
     }
 }
