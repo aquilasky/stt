@@ -86,13 +86,22 @@ import Testing
     #expect(FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments).map(\.sequence) == [0, 2, 4])
 }
 
-@Test func captionFocusLevelEmphasizesTheLatestLine() {
-    #expect(CaptionFocusLevel.forSegment(at: 4, focusedIndex: 4) == .focused)
-    #expect(CaptionFocusLevel.forSegment(at: 3, focusedIndex: 4) == .nearby)
-    #expect(CaptionFocusLevel.forSegment(at: 2, focusedIndex: 4) == .background)
-    #expect(CaptionFocusLevel.forSegment(at: 0, focusedIndex: nil) == .background)
-    #expect(CaptionFocusLevel.focused.sourceScale > CaptionFocusLevel.nearby.sourceScale)
-    #expect(CaptionFocusLevel.nearby.opacity > CaptionFocusLevel.background.opacity)
+@Test func captionFocusLevelEmphasizesConfirmedLineWithoutDimmingHistory() {
+    #expect(CaptionFocusLevel.forSegment(at: 3, focusedIndex: 3, isProvisional: false) == .focused)
+    #expect(CaptionFocusLevel.forSegment(at: 2, focusedIndex: 3, isProvisional: false) == .standard)
+    #expect(CaptionFocusLevel.forSegment(at: 4, focusedIndex: 3, isProvisional: true) == .provisional)
+    #expect(CaptionFocusLevel.focused.sourceScale > CaptionFocusLevel.standard.sourceScale)
+    #expect(CaptionFocusLevel.standard.opacity == 1)
+}
+
+@Test func captionFocusOrderKeepsAllProvisionalSegmentsBelowConfirmedContent() {
+    let firstProvisional = CaptionSegment(sequence: 0, sourceText: "first partial", startedAt: 0, state: .provisional)
+    let confirmed = CaptionSegment(sequence: 1, sourceText: "confirmed", startedAt: 1, state: .completed)
+    let secondProvisional = CaptionSegment(sequence: 2, sourceText: "second partial", startedAt: 2, state: .provisional)
+
+    let displayed = CaptionFocusLevel.orderedSegments([firstProvisional, confirmed, secondProvisional])
+
+    #expect(displayed.map(\.id) == [confirmed.id, firstProvisional.id, secondProvisional.id])
 }
 
 @Test func captionFocusAnchorTracksLatestContentAndLayout() {
@@ -104,8 +113,14 @@ import Testing
         startedAt: 0,
         state: .provisional
     )
+    let priorConfirmed = CaptionSegment(
+        sequence: 0,
+        sourceText: "confirmed sentence",
+        startedAt: 0,
+        state: .completed
+    )
     let initialAnchor = CaptionFocusAnchor(
-        segments: [provisional],
+        segments: [priorConfirmed, provisional],
         fontSize: 18,
         viewportSize: CGSize(width: 900, height: 620)
     )
@@ -115,12 +130,13 @@ import Testing
     committed.translatedText = "最终句子"
     committed.state = .completed
     let updatedAnchor = CaptionFocusAnchor(
-        segments: [committed],
+        segments: [priorConfirmed, committed],
         fontSize: 20,
         viewportSize: CGSize(width: 900, height: 720)
     )
 
-    #expect(initialAnchor.segmentID == updatedAnchor.segmentID)
+    #expect(initialAnchor.scrollTargetSegmentID == priorConfirmed.id)
+    #expect(updatedAnchor.scrollTargetSegmentID == committed.id)
     #expect(initialAnchor != updatedAnchor)
 }
 

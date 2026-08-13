@@ -23,21 +23,24 @@ struct CaptionPreviewView: View {
                     ScrollViewReader { scrollProxy in
                         ScrollView {
                             LazyVStack(spacing: 20) {
-                                ForEach(Array(segments.enumerated()), id: \.element.id) { index, segment in
+                                let displayedSegments = CaptionFocusLevel.orderedSegments(segments)
+                                let focusedIndex = displayedSegments.lastIndex { $0.state != .provisional }
+                                ForEach(Array(displayedSegments.enumerated()), id: \.element.id) { index, segment in
                                     CaptionPreviewSegmentView(
                                         segment: segment,
                                         fontSize: fontSize,
                                         focusLevel: CaptionFocusLevel.forSegment(
                                             at: index,
-                                            focusedIndex: segments.indices.last
+                                            focusedIndex: focusedIndex,
+                                            isProvisional: segment.state == .provisional
                                         )
                                     )
                                     .id(segment.id)
                                 }
                             }
                             // Keeps the active line near the visual center even at the start or end of a session.
-                            .padding(.top, max(40, geometry.size.height * 0.38))
-                            .padding(.bottom, max(72, geometry.size.height * 0.44))
+                            .padding(.top, max(72, geometry.size.height * 0.5))
+                            .padding(.bottom, max(72, geometry.size.height * 0.5))
                             .padding(.horizontal, 48)
                         }
                         .padding(24)
@@ -55,10 +58,10 @@ struct CaptionPreviewView: View {
     }
 
     private func scrollToFocusedSegment(using scrollProxy: ScrollViewProxy, animated: Bool) {
-        guard let focusedSegmentID else { return }
+        guard let scrollTargetSegmentID else { return }
 
         let scroll = {
-            scrollProxy.scrollTo(focusedSegmentID, anchor: .center)
+            scrollProxy.scrollTo(scrollTargetSegmentID, anchor: .center)
         }
 
         if animated, let focusAnimation {
@@ -68,8 +71,8 @@ struct CaptionPreviewView: View {
         }
     }
 
-    private var focusedSegmentID: UUID? {
-        segments.last?.id
+    private var scrollTargetSegmentID: UUID? {
+        CaptionFocusAnchor(segments: segments, fontSize: fontSize, viewportSize: .zero).scrollTargetSegmentID
     }
 
     private func focusAnchor(for viewportSize: CGSize) -> CaptionFocusAnchor {
@@ -93,10 +96,16 @@ private struct CaptionPreviewSegmentView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Text(segment.sourceText)
-                .font(.system(size: fontSize * focusLevel.sourceScale, weight: focusLevel.sourceWeight))
-                .foregroundStyle(segment.state == .provisional ? .secondary : .primary)
-                .contentTransition(.opacity)
+            if segment.state == .provisional {
+                ProvisionalCaptionText(
+                    sourceText: segment.sourceText,
+                    font: .system(size: fontSize, weight: focusLevel.sourceWeight)
+                )
+            } else {
+                Text(segment.sourceText)
+                    .font(.system(size: fontSize * focusLevel.sourceScale, weight: focusLevel.sourceWeight))
+                    .foregroundStyle(.primary)
+            }
 
             if let translation = segment.translatedText {
                 Text(translation)
@@ -111,9 +120,26 @@ private struct CaptionPreviewSegmentView: View {
         .textSelection(.enabled)
         .padding(.vertical, 6)
         .opacity(focusLevel.opacity)
-        .scaleEffect(focusLevel == .focused ? 1 : 0.98)
+        .scaleEffect(focusLevel == .focused ? 1 : 1)
         .animation(focusAnimation, value: focusLevel)
-        .animation(contentAnimation, value: segment.sourceText)
         .animation(contentAnimation, value: segment.translatedText)
+    }
+}
+
+private struct ProvisionalCaptionText: View {
+    let sourceText: String
+    let font: Font
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var updateAnimation: Animation? {
+        reduceMotion ? nil : .easeOut(duration: 0.2)
+    }
+
+    var body: some View {
+        Text(sourceText)
+            .font(font)
+            .foregroundStyle(.secondary)
+            .contentTransition(.interpolate)
+            .animation(updateAnimation, value: sourceText)
     }
 }

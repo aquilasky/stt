@@ -2,60 +2,66 @@ import SwiftUI
 
 enum CaptionFocusLevel: Equatable {
     case focused
-    case nearby
-    case background
+    case standard
+    case provisional
 
-    static func forSegment(at index: Int, focusedIndex: Int?) -> CaptionFocusLevel {
-        guard let focusedIndex else { return .background }
-
-        return switch abs(index - focusedIndex) {
-        case 0:
-            .focused
-        case 1:
-            .nearby
-        default:
-            .background
+    static func forSegment(at index: Int, focusedIndex: Int?, isProvisional: Bool) -> CaptionFocusLevel {
+        if index == focusedIndex {
+            return .focused
         }
+        if isProvisional {
+            return .provisional
+        }
+        return .standard
+    }
+
+    static func orderedSegments(_ segments: [CaptionSegment]) -> [CaptionSegment] {
+        segments.filter { $0.state != .provisional } + segments.filter { $0.state == .provisional }
     }
 
     var sourceScale: CGFloat {
         switch self {
         case .focused: 1.12
-        case .nearby: 0.94
-        case .background: 0.88
+        case .standard, .provisional: 1
         }
     }
 
     var opacity: Double {
         switch self {
-        case .focused: 1
-        case .nearby: 0.58
-        case .background: 0.32
+        case .focused, .standard: 1
+        case .provisional: 0.68
         }
     }
 
     var sourceWeight: Font.Weight {
         switch self {
         case .focused: .semibold
-        case .nearby, .background: .medium
+        case .standard, .provisional: .medium
         }
     }
 }
 
 struct CaptionFocusAnchor: Equatable {
-    let segmentID: UUID?
-    let sourceText: String?
-    let translatedText: String?
-    let state: CaptionState?
+    let scrollTargetSegmentID: UUID?
+    let focusedSegmentID: UUID?
+    let focusedSourceText: String?
+    let focusedTranslatedText: String?
+    let focusedState: CaptionState?
+    let provisionalSegmentID: UUID?
+    let provisionalSourceText: String?
     let fontSize: CGFloat
     let viewportSize: CGSize
 
     init(segments: [CaptionSegment], fontSize: CGFloat, viewportSize: CGSize) {
-        let focusedSegment = segments.last
-        segmentID = focusedSegment?.id
-        sourceText = focusedSegment?.sourceText
-        translatedText = focusedSegment?.translatedText
-        state = focusedSegment?.state
+        let focusedSegment = segments.last { $0.state != .provisional }
+        let provisionalSegment = segments.last { $0.state == .provisional }
+        scrollTargetSegmentID = focusedSegment?.id ?? provisionalSegment?.id
+        focusedSegmentID = focusedSegment?.id
+        focusedSourceText = focusedSegment?.sourceText
+        focusedTranslatedText = focusedSegment?.translatedText
+        focusedState = focusedSegment?.state
+        provisionalSegmentID = provisionalSegment?.id
+        provisionalSourceText = focusedSegment == nil ? provisionalSegment?.sourceText : nil
         self.fontSize = fontSize
         self.viewportSize = viewportSize
     }
