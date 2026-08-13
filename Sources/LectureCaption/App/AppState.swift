@@ -28,6 +28,10 @@ final class AppState {
     var activeSession: LectureSession?
     var captionSegments: [CaptionSegment] = []
     var captionFontSize: CGFloat = 18
+    var isFloatingCaptionVisible = false
+    var floatingCaptionDisplayMode: FloatingCaptionDisplayMode = .bilingual
+    var floatingCaptionFontSize: CGFloat = 20
+    var floatingCaptionBackgroundOpacity = 0.78
     var savedSessions: [SavedLectureSession] = []
 
     @ObservationIgnored private let audioCaptureController = AudioCaptureController()
@@ -79,12 +83,48 @@ final class AppState {
         captionFontSize < Self.maximumCaptionFontSize
     }
 
+    var canDecreaseFloatingCaptionBackgroundOpacity: Bool {
+        floatingCaptionBackgroundOpacity > Self.minimumFloatingCaptionBackgroundOpacity
+    }
+
+    var canIncreaseFloatingCaptionBackgroundOpacity: Bool {
+        floatingCaptionBackgroundOpacity < Self.maximumFloatingCaptionBackgroundOpacity
+    }
+
     func decreaseCaptionFontSize() {
         captionFontSize = max(Self.minimumCaptionFontSize, captionFontSize - Self.captionFontSizeStep)
     }
 
     func increaseCaptionFontSize() {
         captionFontSize = min(Self.maximumCaptionFontSize, captionFontSize + Self.captionFontSizeStep)
+    }
+
+    func decreaseFloatingCaptionFontSize() {
+        floatingCaptionFontSize = max(
+            Self.minimumFloatingCaptionFontSize,
+            floatingCaptionFontSize - Self.floatingCaptionFontSizeStep
+        )
+    }
+
+    func increaseFloatingCaptionFontSize() {
+        floatingCaptionFontSize = min(
+            Self.maximumFloatingCaptionFontSize,
+            floatingCaptionFontSize + Self.floatingCaptionFontSizeStep
+        )
+    }
+
+    func decreaseFloatingCaptionBackgroundOpacity() {
+        floatingCaptionBackgroundOpacity = max(
+            Self.minimumFloatingCaptionBackgroundOpacity,
+            floatingCaptionBackgroundOpacity - Self.floatingCaptionBackgroundOpacityStep
+        )
+    }
+
+    func increaseFloatingCaptionBackgroundOpacity() {
+        floatingCaptionBackgroundOpacity = min(
+            Self.maximumFloatingCaptionBackgroundOpacity,
+            floatingCaptionBackgroundOpacity + Self.floatingCaptionBackgroundOpacityStep
+        )
     }
 
     func startSession() async {
@@ -508,6 +548,12 @@ final class AppState {
     private static let minimumCaptionFontSize: CGFloat = 14
     private static let maximumCaptionFontSize: CGFloat = 30
     private static let captionFontSizeStep: CGFloat = 2
+    private static let minimumFloatingCaptionFontSize: CGFloat = 14
+    private static let maximumFloatingCaptionFontSize: CGFloat = 30
+    private static let floatingCaptionFontSizeStep: CGFloat = 2
+    private static let minimumFloatingCaptionBackgroundOpacity = 0.35
+    private static let maximumFloatingCaptionBackgroundOpacity = 0.95
+    private static let floatingCaptionBackgroundOpacityStep = 0.1
 
     private func startTranslationEventHandling(queue: TranslationQueue, generation: Int) {
         translationEventsTask?.cancel()
