@@ -11,15 +11,16 @@ swift test
 
 在 Xcode 中打开 `LectureCaption.xcodeproj` 后，选择 `LectureCaption` scheme 运行。`Resources/Info.plist` 仅声明麦克风权限用途。
 
-当前工程已初始化：
+1.0.0 已提供：
 
 - 主窗口、课程上下文、术语表和会话控制 UI。
 - 麦克风音频采集、本地输入活动检测、自动待机和手动暂停。
-- 阿里云实时 ASR 的 Provider 抽象。
-- DeepSeek 翻译请求抽象。
-- Keychain 读写封装。
+- 阿里云实时 ASR、临时/最终字幕稳定与断句后的原文保存。
+- DeepSeek `deepseek-v4-flash` 异步翻译、术语表和有界上下文。
+- 本地 JSON 课堂记录与历史查看。
+- 跨桌面、全屏可见且不抢键盘焦点的悬浮双语字幕窗。
 
-DeepSeek 翻译、SwiftData 持久化和悬浮字幕窗将在对应 feature 分支中实现。MiMo 分块 ASR 与系统音频采集均不属于当前 MVP，在 MVP 验收后另行评估。实现约束见 [MVP 开发文档](docs/MVP_DEVELOPMENT.md)，协作流程见 [版本控制与 Pull Request 规范](docs/VERSION_CONTROL.md)。
+当前限制：仅支持麦克风输入；系统音频采集和 MiMo 分块 ASR 均已推迟到后续版本。课堂记录目前可在应用内查看，Markdown/JSON 导出和完整的睡眠恢复验证不包含在 1.0.0。实现约束见 [MVP 开发文档](docs/MVP_DEVELOPMENT.md)，协作流程见 [版本控制与 Pull Request 规范](docs/VERSION_CONTROL.md)。
 
 ## 本地配置
 
