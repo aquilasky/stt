@@ -86,6 +86,44 @@ import Testing
     #expect(FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments).map(\.sequence) == [0, 2, 4])
 }
 
+@Test func captionFocusLevelEmphasizesTheLatestLine() {
+    #expect(CaptionFocusLevel.forSegment(at: 4, focusedIndex: 4) == .focused)
+    #expect(CaptionFocusLevel.forSegment(at: 3, focusedIndex: 4) == .nearby)
+    #expect(CaptionFocusLevel.forSegment(at: 2, focusedIndex: 4) == .background)
+    #expect(CaptionFocusLevel.forSegment(at: 0, focusedIndex: nil) == .background)
+    #expect(CaptionFocusLevel.focused.sourceScale > CaptionFocusLevel.nearby.sourceScale)
+    #expect(CaptionFocusLevel.nearby.opacity > CaptionFocusLevel.background.opacity)
+}
+
+@Test func captionFocusAnchorTracksLatestContentAndLayout() {
+    let segmentID = UUID()
+    let provisional = CaptionSegment(
+        id: segmentID,
+        sequence: 0,
+        sourceText: "partial",
+        startedAt: 0,
+        state: .provisional
+    )
+    let initialAnchor = CaptionFocusAnchor(
+        segments: [provisional],
+        fontSize: 18,
+        viewportSize: CGSize(width: 900, height: 620)
+    )
+
+    var committed = provisional
+    committed.sourceText = "final sentence"
+    committed.translatedText = "最终句子"
+    committed.state = .completed
+    let updatedAnchor = CaptionFocusAnchor(
+        segments: [committed],
+        fontSize: 20,
+        viewportSize: CGSize(width: 900, height: 720)
+    )
+
+    #expect(initialAnchor.segmentID == updatedAnchor.segmentID)
+    #expect(initialAnchor != updatedAnchor)
+}
+
 @Test func floatingCaptionCollectionBehaviorUsesCompatibleSpaceOptions() {
     let behavior = FloatingCaptionWindowBehavior.collectionBehavior
 

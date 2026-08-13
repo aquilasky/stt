@@ -3,6 +3,11 @@ import SwiftUI
 struct CaptionPreviewView: View {
     let segments: [CaptionSegment]
     let fontSize: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var focusAnimation: Animation? {
+        reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86)
+    }
 
     var body: some View {
         Group {
@@ -14,36 +19,34 @@ struct CaptionPreviewView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollViewReader { scrollProxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 18) {
-                            ForEach(segments) { segment in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(segment.sourceText)
-                                        .font(.system(size: fontSize, weight: .medium))
-                                        .foregroundStyle(segment.state == .provisional ? .secondary : .primary)
-
-                                    if let translation = segment.translatedText {
-                                        Text(translation)
-                                            .font(.system(size: max(13, fontSize - 2)))
-                                            .foregroundStyle(.secondary)
-                                    }
+                GeometryReader { geometry in
+                    ScrollViewReader { scrollProxy in
+                        ScrollView {
+                            LazyVStack(spacing: 20) {
+                                ForEach(Array(segments.enumerated()), id: \.element.id) { index, segment in
+                                    CaptionPreviewSegmentView(
+                                        segment: segment,
+                                        fontSize: fontSize,
+                                        focusLevel: CaptionFocusLevel.forSegment(
+                                            at: index,
+                                            focusedIndex: segments.indices.last
+                                        )
+                                    )
+                                    .id(segment.id)
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
-                                .padding(.vertical, 2)
                             }
-                            Color.clear
-                                .frame(height: 1)
-                                .id("caption-bottom")
+                            // Keeps the active line near the visual center even at the start or end of a session.
+                            .padding(.top, max(40, geometry.size.height * 0.38))
+                            .padding(.bottom, max(72, geometry.size.height * 0.44))
+                            .padding(.horizontal, 48)
                         }
                         .padding(24)
-                    }
-                    .onAppear {
-                        scrollToLatest(using: scrollProxy)
-                    }
-                    .onChange(of: latestCaptionToken) {
-                        scrollToLatest(using: scrollProxy)
+                        .onAppear {
+                            scrollToFocusedSegment(using: scrollProxy, animated: false)
+                        }
+                        .onChange(of: focusAnchor(for: geometry.size)) {
+                            scrollToFocusedSegment(using: scrollProxy, animated: true)
+                        }
                     }
                 }
             }
@@ -51,14 +54,66 @@ struct CaptionPreviewView: View {
         .background(.regularMaterial)
     }
 
-    private func scrollToLatest(using scrollProxy: ScrollViewProxy) {
-        withAnimation(.easeOut(duration: 0.2)) {
-            scrollProxy.scrollTo("caption-bottom", anchor: .bottom)
+    private func scrollToFocusedSegment(using scrollProxy: ScrollViewProxy, animated: Bool) {
+        guard let focusedSegmentID else { return }
+
+        let scroll = {
+            scrollProxy.scrollTo(focusedSegmentID, anchor: .center)
+        }
+
+        if animated, let focusAnimation {
+            withAnimation(focusAnimation, scroll)
+        } else {
+            scroll()
         }
     }
 
-    private var latestCaptionToken: String {
-        guard let segment = segments.last else { return "" }
-        return "\(segment.id.uuidString)|\(segment.sourceText)|\(segment.translatedText ?? "")"
+    private var focusedSegmentID: UUID? {
+        segments.last?.id
+    }
+
+    private func focusAnchor(for viewportSize: CGSize) -> CaptionFocusAnchor {
+        CaptionFocusAnchor(segments: segments, fontSize: fontSize, viewportSize: viewportSize)
+    }
+}
+
+private struct CaptionPreviewSegmentView: View {
+    let segment: CaptionSegment
+    let fontSize: CGFloat
+    let focusLevel: CaptionFocusLevel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var focusAnimation: Animation? {
+        reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86)
+    }
+
+    private var contentAnimation: Animation? {
+        reduceMotion ? nil : .easeInOut(duration: 0.16)
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(segment.sourceText)
+                .font(.system(size: fontSize * focusLevel.sourceScale, weight: focusLevel.sourceWeight))
+                .foregroundStyle(segment.state == .provisional ? .secondary : .primary)
+                .contentTransition(.opacity)
+
+            if let translation = segment.translatedText {
+                Text(translation)
+                    .font(.system(size: max(13, fontSize - 1), weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.opacity)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: 780)
+        .frame(maxWidth: .infinity)
+        .textSelection(.enabled)
+        .padding(.vertical, 6)
+        .opacity(focusLevel.opacity)
+        .scaleEffect(focusLevel == .focused ? 1 : 0.98)
+        .animation(focusAnimation, value: focusLevel)
+        .animation(contentAnimation, value: segment.sourceText)
+        .animation(contentAnimation, value: segment.translatedText)
     }
 }
