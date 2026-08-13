@@ -125,7 +125,7 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
         var request = URLRequest(url: endpoint)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue(settings.workspaceID, forHTTPHeaderField: "X-DashScope-WorkSpace")
-        request.setValue("LectureCaption/0.1", forHTTPHeaderField: "User-Agent")
+        request.setValue("LectureCaption/1.0.0", forHTTPHeaderField: "User-Agent")
 
         taskID = id
         hasSentFinish = false

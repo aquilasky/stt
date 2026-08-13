@@ -706,6 +706,7 @@ private actor FakeAliyunWebSocketTransport: AliyunWebSocketTransport {
         if let connectError { throw connectError }
         connected = true
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-key")
+        #expect(request.value(forHTTPHeaderField: "User-Agent") == "LectureCaption/1.0.0")
     }
 
     func send(text: String) async throws {
