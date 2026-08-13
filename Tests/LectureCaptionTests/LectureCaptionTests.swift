@@ -94,6 +94,21 @@ import Testing
     #expect(!behavior.contains(.moveToActiveSpace))
 }
 
+@Test @MainActor func floatingCaptionOpacityButtonsClampToSupportedRange() {
+    let appState = AppState()
+    appState.floatingCaptionBackgroundOpacity = 0.35
+    #expect(!appState.canDecreaseFloatingCaptionBackgroundOpacity)
+    #expect(appState.canIncreaseFloatingCaptionBackgroundOpacity)
+    appState.decreaseFloatingCaptionBackgroundOpacity()
+    #expect(appState.floatingCaptionBackgroundOpacity == 0.35)
+
+    appState.floatingCaptionBackgroundOpacity = 0.95
+    #expect(appState.canDecreaseFloatingCaptionBackgroundOpacity)
+    #expect(!appState.canIncreaseFloatingCaptionBackgroundOpacity)
+    appState.increaseFloatingCaptionBackgroundOpacity()
+    #expect(appState.floatingCaptionBackgroundOpacity == 0.95)
+}
+
 @Test func chunkerEmitsFixedDurationFramesAndFlushesRemainder() {
     var chunker = PCM16Chunker(sampleRate: 16_000, chunkDuration: 0.04)
     let input = PCM16Frame(

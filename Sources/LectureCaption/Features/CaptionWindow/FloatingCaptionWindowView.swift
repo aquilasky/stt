@@ -72,26 +72,27 @@ struct FloatingCaptionWindowView: View {
             .help("增大字幕字号")
             .disabled(appState.floatingCaptionFontSize >= 30)
 
-            Menu {
-                Picker("字幕显示", selection: $appState.floatingCaptionDisplayMode) {
-                    ForEach(FloatingCaptionDisplayMode.allCases) { mode in
-                        Label(mode.title, systemImage: mode.symbolName).tag(mode)
-                    }
+            ForEach(FloatingCaptionDisplayMode.allCases) { mode in
+                Button {
+                    appState.floatingCaptionDisplayMode = mode
+                } label: {
+                    Image(systemName: mode.symbolName)
                 }
-            } label: {
-                Image(systemName: appState.floatingCaptionDisplayMode.symbolName)
+                .help(mode.title)
+                .tint(appState.floatingCaptionDisplayMode == mode ? .accentColor : .secondary)
             }
-            .help("字幕显示模式")
 
-            Menu {
-                Slider(value: $appState.floatingCaptionBackgroundOpacity, in: 0.35...0.95) {
-                    Text("背景不透明度")
-                }
-                .frame(width: 160)
-            } label: {
+            Button(action: appState.decreaseFloatingCaptionBackgroundOpacity) {
                 Image(systemName: "circle.lefthalf.filled")
             }
-            .help("背景不透明度")
+            .help("降低背景不透明度")
+            .disabled(!appState.canDecreaseFloatingCaptionBackgroundOpacity)
+
+            Button(action: appState.increaseFloatingCaptionBackgroundOpacity) {
+                Image(systemName: "circle.fill")
+            }
+            .help("提高背景不透明度")
+            .disabled(!appState.canIncreaseFloatingCaptionBackgroundOpacity)
 
             Button {
                 appState.isFloatingCaptionVisible = false
