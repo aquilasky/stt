@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import LectureCaption
@@ -44,6 +45,29 @@ import Testing
 
     #expect(!gate.accepts(firstStart))
     #expect(gate.accepts(secondStart))
+}
+
+@Test func mainWindowDoesNotUseMoveToActiveSpaceBehavior() {
+    let behavior: NSWindow.CollectionBehavior = [.managed, .moveToActiveSpace]
+    let standardized = MainWindowSpaceBehavior.standardized(behavior)
+
+    #expect(standardized.contains(.managed))
+    #expect(!standardized.contains(.moveToActiveSpace))
+}
+
+@Test func mainWindowRestoresAfterActivationOnlyWithoutAnExistingKeyWindow() {
+    #expect(MainWindowSpaceBehavior.shouldRestoreAfterActivation(
+        hasKeyWindow: false,
+        mainWindowIsVisible: true
+    ))
+    #expect(!MainWindowSpaceBehavior.shouldRestoreAfterActivation(
+        hasKeyWindow: true,
+        mainWindowIsVisible: true
+    ))
+    #expect(!MainWindowSpaceBehavior.shouldRestoreAfterActivation(
+        hasKeyWindow: false,
+        mainWindowIsVisible: false
+    ))
 }
 
 @Test func chunkerEmitsFixedDurationFramesAndFlushesRemainder() {
