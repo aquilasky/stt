@@ -163,6 +163,61 @@ import Testing
     #expect(stabilizer.segments[1].state == .provisional)
 }
 
+@Test func transcriptStabilizerAppliesLateFinalCorrectionToAutoCommittedSegment() {
+    var stabilizer = TranscriptStabilizer()
+    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The first version.", startedAt: 0))
+    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
+
+    _ = stabilizer.apply(.final(
+        providerSentenceID: "1",
+        text: "The corrected first version.",
+        startedAt: 0,
+        endedAt: 1.4
+    ))
+
+    #expect(stabilizer.segments.count == 1)
+    #expect(stabilizer.segments[0].sourceText == "The corrected first version.")
+    #expect(stabilizer.segments[0].endedAt == 1.4)
+}
+
+@Test func transcriptStabilizerExtractsContinuationFromCumulativePartialAfterAutoCommit() {
+    var stabilizer = TranscriptStabilizer()
+    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The first sentence.", startedAt: 0))
+    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
+    _ = stabilizer.apply(.partial(
+        providerSentenceID: "1",
+        text: "The first sentence. The second sentence",
+        startedAt: 1
+    ))
+
+    #expect(stabilizer.segments.count == 2)
+    #expect(stabilizer.segments[0].sourceText == "The first sentence.")
+    #expect(stabilizer.segments[1].sourceText == "The second sentence")
+    #expect(stabilizer.segments[1].state == .provisional)
+}
+
+@Test func transcriptStabilizerFinalizesOnlyContinuationAfterCumulativePartial() {
+    var stabilizer = TranscriptStabilizer()
+    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The first sentence.", startedAt: 0))
+    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
+    _ = stabilizer.apply(.partial(
+        providerSentenceID: "1",
+        text: "The first sentence. The second sentence",
+        startedAt: 1
+    ))
+    _ = stabilizer.apply(.final(
+        providerSentenceID: "1",
+        text: "The first sentence. The second sentence.",
+        startedAt: 1,
+        endedAt: 2
+    ))
+
+    #expect(stabilizer.segments.count == 2)
+    #expect(stabilizer.segments[0].sourceText == "The first sentence.")
+    #expect(stabilizer.segments[1].sourceText == "The second sentence.")
+    #expect(stabilizer.segments[1].state == .committed)
+}
+
 @Test func floatingCaptionCollectionBehaviorUsesCompatibleSpaceOptions() {
     let behavior = FloatingCaptionWindowBehavior.collectionBehavior
 
@@ -564,8 +619,8 @@ import Testing
     await queue.enqueue(translationRequest(id: secondID, source: "second"))
 
     var iterator = events.makeAsyncIterator()
-    #expect(await iterator.next() == .failed(segmentID: firstID))
-    #expect(await iterator.next() == .translated(segmentID: secondID, text: "第二句译文"))
+    #expect(await iterator.next() == .failed(segmentID: firstID, sourceText: "first"))
+    #expect(await iterator.next() == .translated(segmentID: secondID, sourceText: "second", text: "第二句译文"))
     #expect(await provider.receivedSegmentIDs == [firstID, secondID])
 }
 
@@ -582,8 +637,8 @@ import Testing
     ])
 
     var iterator = events.makeAsyncIterator()
-    #expect(await iterator.next() == .translated(segmentID: firstID, text: "first translation"))
-    #expect(await iterator.next() == .translated(segmentID: secondID, text: "second translation"))
+    #expect(await iterator.next() == .translated(segmentID: firstID, sourceText: "first", text: "first translation"))
+    #expect(await iterator.next() == .translated(segmentID: secondID, sourceText: "second", text: "second translation"))
     #expect(await provider.receivedSegmentIDs == [firstID, secondID])
 }
 
@@ -603,7 +658,7 @@ import Testing
     await newQueue.enqueue(translationRequest(id: segmentID, source: "new source"))
 
     var iterator = newEvents.makeAsyncIterator()
-    #expect(await iterator.next() == .translated(segmentID: segmentID, text: "new"))
+    #expect(await iterator.next() == .translated(segmentID: segmentID, sourceText: "new source", text: "new"))
 }
 
 @Test func aliyunDNSFailureHasActionableHandshakeError() async throws {
