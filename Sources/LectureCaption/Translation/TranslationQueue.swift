@@ -1,8 +1,8 @@
 import Foundation
 
 enum TranslationQueueEvent: Sendable, Equatable {
-    case translated(segmentID: UUID, text: String)
-    case failed(segmentID: UUID)
+    case translated(segmentID: UUID, sourceText: String, text: String)
+    case failed(segmentID: UUID, sourceText: String)
 }
 
 actor TranslationQueue {
@@ -47,10 +47,14 @@ actor TranslationQueue {
             do {
                 let translation = try await provider.translate(request)
                 guard !Task.isCancelled, generation == self.generation else { return }
-                eventChannel.yield(.translated(segmentID: request.segmentID, text: translation))
+                eventChannel.yield(.translated(
+                    segmentID: request.segmentID,
+                    sourceText: request.sourceText,
+                    text: translation
+                ))
             } catch {
                 guard !Task.isCancelled, generation == self.generation else { return }
-                eventChannel.yield(.failed(segmentID: request.segmentID))
+                eventChannel.yield(.failed(segmentID: request.segmentID, sourceText: request.sourceText))
             }
         }
         if generation == self.generation {
