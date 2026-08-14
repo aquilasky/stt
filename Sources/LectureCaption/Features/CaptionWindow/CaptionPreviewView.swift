@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CaptionPreviewView: View {
     let segments: [CaptionSegment]
+    let liveTranslation: String?
     let fontSize: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -10,14 +11,16 @@ struct CaptionPreviewView: View {
     }
 
     var body: some View {
-        Group {
+        ZStack(alignment: .bottom) {
             if segments.isEmpty {
-                ContentUnavailableView(
-                    "等待字幕",
-                    systemImage: "captions.bubble",
-                    description: Text("开始会话后将在此显示已确认原文和译文。")
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if liveTranslation == nil {
+                    ContentUnavailableView(
+                        "等待字幕",
+                        systemImage: "captions.bubble",
+                        description: Text("开始会话后将在此显示已确认原文和译文。")
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             } else {
                 GeometryReader { geometry in
                     ScrollViewReader { scrollProxy in
@@ -53,8 +56,27 @@ struct CaptionPreviewView: View {
                     }
                 }
             }
+
+            if let liveTranslation {
+                Text(liveTranslation)
+                    .font(.system(size: max(15, fontSize - 1), weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 780)
+                    .padding(.horizontal, 48)
+                    .padding(.vertical, 18)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .padding(.horizontal, 48)
+                    .padding(.bottom, 28)
+                    .contentTransition(.opacity)
+                    .animation(contentAnimation, value: liveTranslation)
+            }
         }
         .background(.regularMaterial)
+    }
+
+    private var contentAnimation: Animation? {
+        reduceMotion ? nil : .easeInOut(duration: 0.16)
     }
 
     private func scrollToFocusedSegment(using scrollProxy: ScrollViewProxy, animated: Bool) {

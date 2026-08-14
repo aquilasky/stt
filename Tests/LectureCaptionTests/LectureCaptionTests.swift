@@ -81,8 +81,8 @@ import Testing
         )
     }
 
-    #expect(FloatingCaptionDisplayMode.bilingual.visibleSegments(from: segments).map(\.sequence) == [3, 4, 5])
-    #expect(FloatingCaptionDisplayMode.sourceOnly.visibleSegments(from: segments).map(\.sequence) == [3, 4, 5])
+    #expect(FloatingCaptionDisplayMode.bilingual.visibleSegments(from: segments).map(\.sequence) == [2, 3, 4])
+    #expect(FloatingCaptionDisplayMode.sourceOnly.visibleSegments(from: segments).map(\.sequence) == [2, 3, 4])
     #expect(FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments).map(\.sequence) == [0, 2, 4])
 }
 
@@ -157,7 +157,7 @@ import Testing
 
     _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The value is complete.", startedAt: 0))
     let committed = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
-    #expect(committed[0].state == .committed)
+    #expect(committed[0].state == .autoCommitted)
     #expect(committed[0].sourceText == "The value is complete.")
 
     _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The next sentence", startedAt: 1))
@@ -230,7 +230,7 @@ import Testing
     _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
 
     #expect(stabilizer.segments.map(\.sourceText) == ["First sentence.", "Second sentence"])
-    #expect(stabilizer.segments[0].state == .committed)
+    #expect(stabilizer.segments[0].state == .autoCommitted)
     #expect(stabilizer.segments[1].state == .provisional)
 
     _ = stabilizer.apply(.partial(
@@ -260,7 +260,7 @@ import Testing
     _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
 
     #expect(stabilizer.segments.map(\.sourceText) == ["First.", "Second.", "Third."])
-    #expect(stabilizer.segments.allSatisfy { $0.state == .committed })
+    #expect(stabilizer.segments.allSatisfy { $0.state == .autoCommitted })
 }
 
 @Test func transcriptStabilizerKeepsFinalTimestampAfterAutomaticCommit() {
@@ -276,6 +276,66 @@ import Testing
 
     #expect(stabilizer.segments.count == 1)
     #expect(stabilizer.segments[0].endedAt == 1.8)
+}
+
+@Test func floatingCaptionsHidePartialAndAutoCommittedSegmentsUntilFinal() {
+    let segments = [
+        CaptionSegment(sequence: 0, sourceText: "auto", translatedText: "自动", startedAt: 0, state: .autoCommitted),
+        CaptionSegment(sequence: 1, sourceText: "final", translatedText: "最终", startedAt: 1, state: .completed)
+    ]
+
+    #expect(FloatingCaptionDisplayMode.bilingual.visibleSegments(from: segments).map(\.sourceText) == ["final"])
+    #expect(FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments).map(\.translatedText) == ["最终"])
+}
+
+@Test @MainActor func appStateExposesTheLatestAutoCommittedTranslation() {
+    let appState = AppState()
+    appState.captionSegments = [
+        CaptionSegment(sequence: 0, sourceText: "first", translatedText: "第一句", startedAt: 0, state: .autoCommitted),
+        CaptionSegment(sequence: 1, sourceText: "final", translatedText: "最终句", startedAt: 1, state: .completed)
+    ]
+
+    #expect(appState.liveTranslationText == "第一句")
+}
+
+@Test func transcriptStabilizerIgnoresDuplicateFinalWithDifferentProviderID() {
+    var stabilizer = TranscriptStabilizer()
+    let final = TranscriptEvent.final(
+        providerSentenceID: "1",
+        text: "A final sentence.",
+        startedAt: 0,
+        endedAt: 1
+    )
+    _ = stabilizer.apply(final)
+    _ = stabilizer.apply(.final(
+        providerSentenceID: "2",
+        text: "A final sentence.",
+        startedAt: 0,
+        endedAt: 1
+    ))
+
+    #expect(stabilizer.segments.count == 1)
+    #expect(stabilizer.segments[0].sourceText == "A final sentence.")
+}
+
+@Test func transcriptStabilizerReplacesAutoCommittedSegmentsWhenFinalCorrectsTheirPrefix() {
+    var stabilizer = TranscriptStabilizer()
+    _ = stabilizer.apply(.partial(
+        providerSentenceID: "1",
+        text: "First sentence. Second sentence.",
+        startedAt: 0
+    ))
+    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
+    _ = stabilizer.apply(.final(
+        providerSentenceID: "1",
+        text: "Corrected first sentence. Second sentence.",
+        startedAt: 0,
+        endedAt: 2
+    ))
+
+    #expect(stabilizer.segments.count == 1)
+    #expect(stabilizer.segments[0].sourceText == "Corrected first sentence. Second sentence.")
+    #expect(stabilizer.segments[0].state == .committed)
 }
 
 @Test func floatingCaptionCollectionBehaviorUsesCompatibleSpaceOptions() {

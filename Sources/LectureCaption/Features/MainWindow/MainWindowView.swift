@@ -12,7 +12,10 @@ struct MainWindowView: View {
             Divider()
 
             CaptionPreviewView(
-                segments: appState.captionSegments,
+                segments: appState.captionSegments.filter {
+                    $0.state != .provisional && $0.state != .autoCommitted
+                },
+                liveTranslation: appState.liveTranslationText,
                 fontSize: appState.captionFontSize
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -60,7 +63,9 @@ struct MainWindowView: View {
                 Button(action: appState.saveCurrentSession) {
                     Label("保存记录", systemImage: "tray.and.arrow.down")
                 }
-                .disabled(appState.captionSegments.allSatisfy { $0.state == .provisional })
+                .disabled(appState.captionSegments.allSatisfy {
+                    $0.state == .provisional || $0.state == .autoCommitted
+                })
 
                 Toggle(isOn: $appState.isFloatingCaptionVisible) {
                     Label("悬浮字幕", systemImage: "rectangle.on.rectangle")

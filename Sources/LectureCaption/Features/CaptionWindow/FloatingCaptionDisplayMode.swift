@@ -30,12 +30,15 @@ enum FloatingCaptionDisplayMode: String, CaseIterable, Identifiable, Sendable {
     }
 
     func visibleSegments(from segments: [CaptionSegment], maximumCount: Int = 3) -> [CaptionSegment] {
+        let displayableSegments = segments.filter {
+            $0.state != .provisional && $0.state != .autoCommitted
+        }
         let matchingSegments: [CaptionSegment]
         switch self {
         case .bilingual, .sourceOnly:
-            matchingSegments = segments
+            matchingSegments = displayableSegments
         case .translationOnly:
-            matchingSegments = segments.filter { $0.translatedText != nil }
+            matchingSegments = displayableSegments.filter { $0.translatedText != nil }
         }
 
         return Array(matchingSegments.suffix(max(1, maximumCount)))

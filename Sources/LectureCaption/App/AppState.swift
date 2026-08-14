@@ -34,6 +34,10 @@ final class AppState {
     var floatingCaptionBackgroundOpacity = 0.78
     var savedSessions: [SavedLectureSession] = []
 
+    var liveTranslationText: String? {
+        captionSegments.last { $0.state == .autoCommitted && $0.translatedText != nil }?.translatedText
+    }
+
     @ObservationIgnored private let audioCaptureController = AudioCaptureController()
     @ObservationIgnored private var silenceStartedAt: TimeInterval?
     @ObservationIgnored private var sessionGeneration = 0
@@ -570,7 +574,7 @@ final class AppState {
         guard let session = activeSession else { return nil }
 
         let savedSegments = captionSegments
-            .filter { $0.state != .provisional }
+            .filter { $0.state != .provisional && $0.state != .autoCommitted }
             .sorted { $0.sequence < $1.sequence }
         guard !savedSegments.isEmpty else { return nil }
 
@@ -638,14 +642,19 @@ final class AppState {
         guard !isDeepSeekTranslationDisabled else { return }
         let confirmedSegments = captionSegments.filter { $0.state != .provisional }
         let segmentsToTranslate = confirmedSegments
-            .filter { $0.state == .committed && !translatedSegmentIDs.contains($0.id) }
+            .filter {
+                ($0.state == .committed || $0.state == .autoCommitted)
+                    && !translatedSegmentIDs.contains($0.id)
+            }
             .sorted { $0.sequence < $1.sequence }
         var requests: [TranslationRequest] = []
 
         for segment in segmentsToTranslate {
             translatedSegmentIDs.insert(segment.id)
             guard let index = captionSegments.firstIndex(where: { $0.id == segment.id }) else { continue }
-            captionSegments[index].state = .translating
+            if segment.state == .committed {
+                captionSegments[index].state = .translating
+            }
             let recentContext = confirmedSegments
                 .filter { $0.sequence < segment.sequence }
                 .suffix(6)
@@ -698,12 +707,16 @@ final class AppState {
             guard let index = captionSegments.firstIndex(where: { $0.id == segmentID }) else { return }
             guard captionSegments[index].sourceText == sourceText else { return }
             captionSegments[index].translatedText = text
-            captionSegments[index].state = .completed
+            if captionSegments[index].state != .autoCommitted {
+                captionSegments[index].state = .completed
+            }
             saveCurrentSession()
         case let .failed(segmentID, sourceText):
             guard let index = captionSegments.firstIndex(where: { $0.id == segmentID }) else { return }
             guard captionSegments[index].sourceText == sourceText else { return }
-            captionSegments[index].state = .translationFailed
+            if captionSegments[index].state != .autoCommitted {
+                captionSegments[index].state = .translationFailed
+            }
             saveCurrentSession()
         }
     }

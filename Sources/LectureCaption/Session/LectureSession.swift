@@ -65,6 +65,7 @@ struct CaptionSegment: Identifiable, Codable, Sendable {
 
 enum CaptionState: String, Codable, Sendable {
     case provisional
+    case autoCommitted
     case committed
     case translating
     case completed
