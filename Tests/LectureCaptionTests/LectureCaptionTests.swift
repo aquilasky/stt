@@ -86,6 +86,60 @@ import Testing
     #expect(FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments).map(\.sequence) == [0, 2, 4])
 }
 
+@Test func captionFocusLevelEmphasizesConfirmedLineWithoutDimmingHistory() {
+    #expect(CaptionFocusLevel.forSegment(at: 3, focusedIndex: 3, isProvisional: false) == .focused)
+    #expect(CaptionFocusLevel.forSegment(at: 2, focusedIndex: 3, isProvisional: false) == .standard)
+    #expect(CaptionFocusLevel.forSegment(at: 4, focusedIndex: 3, isProvisional: true) == .provisional)
+    #expect(CaptionFocusLevel.focused.sourceScale > CaptionFocusLevel.standard.sourceScale)
+    #expect(CaptionFocusLevel.standard.opacity == 1)
+}
+
+@Test func captionFocusOrderKeepsAllProvisionalSegmentsBelowConfirmedContent() {
+    let firstProvisional = CaptionSegment(sequence: 0, sourceText: "first partial", startedAt: 0, state: .provisional)
+    let confirmed = CaptionSegment(sequence: 1, sourceText: "confirmed", startedAt: 1, state: .completed)
+    let secondProvisional = CaptionSegment(sequence: 2, sourceText: "second partial", startedAt: 2, state: .provisional)
+
+    let displayed = CaptionFocusLevel.orderedSegments([firstProvisional, confirmed, secondProvisional])
+
+    #expect(displayed.map(\.id) == [confirmed.id, firstProvisional.id, secondProvisional.id])
+}
+
+@Test func captionFocusAnchorTracksLatestContentAndLayout() {
+    let segmentID = UUID()
+    let provisional = CaptionSegment(
+        id: segmentID,
+        sequence: 0,
+        sourceText: "partial",
+        startedAt: 0,
+        state: .provisional
+    )
+    let priorConfirmed = CaptionSegment(
+        sequence: 0,
+        sourceText: "confirmed sentence",
+        startedAt: 0,
+        state: .completed
+    )
+    let initialAnchor = CaptionFocusAnchor(
+        segments: [priorConfirmed, provisional],
+        fontSize: 18,
+        viewportSize: CGSize(width: 900, height: 620)
+    )
+
+    var committed = provisional
+    committed.sourceText = "final sentence"
+    committed.translatedText = "最终句子"
+    committed.state = .completed
+    let updatedAnchor = CaptionFocusAnchor(
+        segments: [priorConfirmed, committed],
+        fontSize: 20,
+        viewportSize: CGSize(width: 900, height: 720)
+    )
+
+    #expect(initialAnchor.scrollTargetSegmentID == priorConfirmed.id)
+    #expect(updatedAnchor.scrollTargetSegmentID == committed.id)
+    #expect(initialAnchor != updatedAnchor)
+}
+
 @Test func floatingCaptionCollectionBehaviorUsesCompatibleSpaceOptions() {
     let behavior = FloatingCaptionWindowBehavior.collectionBehavior
 
