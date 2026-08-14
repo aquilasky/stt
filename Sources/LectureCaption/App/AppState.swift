@@ -39,6 +39,7 @@ final class AppState {
     @ObservationIgnored private var sessionGeneration = 0
     @ObservationIgnored private var provider: AliyunRealtimeSTTProvider?
     @ObservationIgnored private var providerEventsTask: Task<Void, Never>?
+    @ObservationIgnored private var punctuationCommitTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var transcriptStabilizer = TranscriptStabilizer()
     @ObservationIgnored private var providerIsReady = false
     @ObservationIgnored private var isFinishingProvider = false
@@ -151,6 +152,9 @@ final class AppState {
 
         sessionGeneration += 1
         let generation = sessionGeneration
+        restartProviderAfterFinish = false
+        restartPreRollData = nil
+        restartPreRollEndedAt = nil
 
         activeSession = LectureSession(
             context: LectureContext(
@@ -164,6 +168,7 @@ final class AppState {
         )
         captionSegments = []
         transcriptStabilizer = TranscriptStabilizer()
+        cancelPunctuationCommitTasks()
         translatedSegmentIDs = []
         await translationQueue?.cancelAll()
         translationEventsTask?.cancel()
@@ -216,6 +221,10 @@ final class AppState {
     func stopSession() async {
         guard phase != .idle && phase != .completed else { return }
         sessionGeneration += 1
+        phase = .completed
+        restartProviderAfterFinish = false
+        restartPreRollData = nil
+        restartPreRollEndedAt = nil
         audioCaptureController.stop()
         requestProviderFinish()
         let translationQueue = translationQueue
@@ -223,6 +232,7 @@ final class AppState {
         self.translationQueue = nil
         translationEventsTask?.cancel()
         translationEventsTask = nil
+        cancelPunctuationCommitTasks()
         activeSession?.endedAt = .now
         if let pendingSave = makeCurrentSessionSave() {
             do {
@@ -234,7 +244,6 @@ final class AppState {
         }
         isInputActive = false
         silenceStartedAt = nil
-        phase = .completed
     }
 
     // The audio pipeline calls this after local activity detection, before cloud audio is sent.
@@ -353,6 +362,7 @@ final class AppState {
         guard self.provider === provider else { return }
         switch event {
         case .ready:
+            guard phase != .completed else { return }
             phase = .recognizing
             if let preRollData, !preRollData.isEmpty {
                 discardBufferedAudio(through: preRollEndedAt)
@@ -368,13 +378,30 @@ final class AppState {
             }
             providerIsReady = true
             drainProviderAudio()
-        case .partial, .final:
+        case let .partial(providerSentenceID, text, _):
             applyTranscriptUpdate(transcriptStabilizer.apply(event))
-            await enqueueCommittedSegmentsForTranslation()
-            if case .final = event {
-                saveCurrentSession()
+            if phase != .completed {
+                await enqueueCommittedSegmentsForTranslation()
             }
+            schedulePunctuationCommit(
+                providerSentenceID: providerSentenceID,
+                text: text,
+                provider: provider,
+                generation: sessionGeneration
+            )
+        case let .final(providerSentenceID, _, _, _):
+            punctuationCommitTasks[providerSentenceID]?.cancel()
+            punctuationCommitTasks[providerSentenceID] = nil
+            applyTranscriptUpdate(transcriptStabilizer.apply(event))
+            if phase != .completed {
+                await enqueueCommittedSegmentsForTranslation()
+            }
+            saveCurrentSession()
         case let .failed(code, message):
+            guard phase != .completed else {
+                await clearProvider(provider)
+                return
+            }
             captureError = AliyunServerError(code: code, message: message).localizedDescription
             await clearProvider(provider)
             phase = .monitoringLocal
@@ -383,7 +410,7 @@ final class AppState {
             if phase != .completed && phase != .manuallyPaused {
                 phase = .monitoringLocal
             }
-            if restartProviderAfterFinish {
+            if phase != .completed && restartProviderAfterFinish {
                 restartProviderAfterFinish = false
                 let preRollData = restartPreRollData
                 restartPreRollData = nil
@@ -408,8 +435,45 @@ final class AppState {
         drainProviderAudio()
     }
 
+    private func schedulePunctuationCommit(
+        providerSentenceID: String,
+        text: String,
+        provider: AliyunRealtimeSTTProvider,
+        generation: Int
+    ) {
+        punctuationCommitTasks[providerSentenceID]?.cancel()
+        guard SentenceBoundaryDetector.shouldAutoCommit(text) else {
+            punctuationCommitTasks[providerSentenceID] = nil
+            return
+        }
+
+        punctuationCommitTasks[providerSentenceID] = Task { [weak self] in
+            do {
+                try await Task.sleep(for: SentenceBoundaryDetector.commitDelay)
+            } catch {
+                return
+            }
+            guard let self,
+                  self.sessionGeneration == generation,
+                  self.provider === provider else { return }
+            self.punctuationCommitTasks[providerSentenceID] = nil
+            let updatedSegments = self.transcriptStabilizer.autoCommitPunctuatedPartial(
+                providerSentenceID: providerSentenceID
+            )
+            self.applyTranscriptUpdate(updatedSegments)
+            await self.enqueueCommittedSegmentsForTranslation()
+            self.saveCurrentSession()
+        }
+    }
+
+    private func cancelPunctuationCommitTasks() {
+        punctuationCommitTasks.values.forEach { $0.cancel() }
+        punctuationCommitTasks.removeAll()
+    }
+
     private func clearProvider(_ provider: AliyunRealtimeSTTProvider) async {
         guard self.provider === provider else { return }
+        cancelPunctuationCommitTasks()
         self.provider = nil
         providerEventsTask = nil
         clearPendingProviderAudio()
@@ -603,15 +667,20 @@ final class AppState {
     }
 
     private func applyTranscriptUpdate(_ updatedSegments: [CaptionSegment]) {
-        let translations = Dictionary(
-            uniqueKeysWithValues: captionSegments.map { ($0.id, ($0.translatedText, $0.state)) }
-        )
+        let existing = Dictionary(uniqueKeysWithValues: captionSegments.map { ($0.id, $0) })
         captionSegments = updatedSegments.map { segment in
-            guard let (translation, state) = translations[segment.id] else { return segment }
+            guard let prior = existing[segment.id] else { return segment }
             var merged = segment
-            merged.translatedText = translation
-            if state == .translating || state == .completed || state == .translationFailed {
-                merged.state = state
+            if prior.sourceText != segment.sourceText,
+               prior.state != .provisional {
+                merged.translatedText = nil
+                merged.state = .committed
+                translatedSegmentIDs.remove(segment.id)
+            } else {
+                merged.translatedText = prior.translatedText
+                if prior.state == .translating || prior.state == .completed || prior.state == .translationFailed {
+                    merged.state = prior.state
+                }
             }
             return merged
         }
@@ -625,13 +694,15 @@ final class AppState {
 
     private func applyTranslationEvent(_ event: TranslationQueueEvent) {
         switch event {
-        case let .translated(segmentID, text):
+        case let .translated(segmentID, sourceText, text):
             guard let index = captionSegments.firstIndex(where: { $0.id == segmentID }) else { return }
+            guard captionSegments[index].sourceText == sourceText else { return }
             captionSegments[index].translatedText = text
             captionSegments[index].state = .completed
             saveCurrentSession()
-        case let .failed(segmentID):
+        case let .failed(segmentID, sourceText):
             guard let index = captionSegments.firstIndex(where: { $0.id == segmentID }) else { return }
+            guard captionSegments[index].sourceText == sourceText else { return }
             captionSegments[index].state = .translationFailed
             saveCurrentSession()
         }
