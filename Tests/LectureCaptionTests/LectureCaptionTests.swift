@@ -352,6 +352,7 @@ import Testing
     #expect(header["streaming"] as? String == "duplex")
     #expect(payload["model"] as? String == "qwen-audio-3.0-asr-flash-streaming")
     #expect(parameters["sample_rate"] as? Int == 16_000)
+    #expect(parameters["semantic_punctuation_enabled"] as? Bool == true)
     #expect(parameters["language_hints"] as? [String] == ["en"])
     #expect((parameters["vocabulary"] as? [String: Int])?["gradient descent"] == 3)
 }
