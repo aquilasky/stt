@@ -146,6 +146,8 @@ import Testing
     #expect(SentenceBoundaryDetector.shouldAutoCommit("The value is 3.14.") == true)
     #expect(SentenceBoundaryDetector.shouldAutoCommit("The training is complete.") == true)
     #expect(SentenceBoundaryDetector.shouldAutoCommit("训练完成。") == true)
+    #expect(SentenceBoundaryDetector.split(atFirstBoundaryIn: "第一句。第二句还没说完")?.committed == "第一句。")
+    #expect(SentenceBoundaryDetector.split(atFirstBoundaryIn: "第一句。第二句还没说完")?.remainder == "第二句还没说完")
 }
 
 @Test func transcriptStabilizerAutoCommitsPunctuatedPartialAndAllowsNextSentence() {
@@ -216,6 +218,64 @@ import Testing
     #expect(stabilizer.segments[0].sourceText == "The first sentence.")
     #expect(stabilizer.segments[1].sourceText == "The second sentence.")
     #expect(stabilizer.segments[1].state == .committed)
+}
+
+@Test func transcriptStabilizerSplitsMultipleSentencesFromCumulativePartial() {
+    var stabilizer = TranscriptStabilizer()
+    _ = stabilizer.apply(.partial(
+        providerSentenceID: "1",
+        text: "First sentence. Second sentence",
+        startedAt: 0
+    ))
+    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
+
+    #expect(stabilizer.segments.map(\.sourceText) == ["First sentence.", "Second sentence"])
+    #expect(stabilizer.segments[0].state == .committed)
+    #expect(stabilizer.segments[1].state == .provisional)
+
+    _ = stabilizer.apply(.partial(
+        providerSentenceID: "1",
+        text: "First sentence. Second sentence.",
+        startedAt: 1
+    ))
+    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
+    _ = stabilizer.apply(.final(
+        providerSentenceID: "1",
+        text: "First sentence. Second sentence.",
+        startedAt: 0,
+        endedAt: 2
+    ))
+
+    #expect(stabilizer.segments.map(\.sourceText) == ["First sentence.", "Second sentence."])
+    #expect(stabilizer.segments.allSatisfy { $0.state == .committed })
+}
+
+@Test func transcriptStabilizerSplitsAllCompletedSentencesFromOnePartial() {
+    var stabilizer = TranscriptStabilizer()
+    _ = stabilizer.apply(.partial(
+        providerSentenceID: "1",
+        text: "First. Second. Third.",
+        startedAt: 0
+    ))
+    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
+
+    #expect(stabilizer.segments.map(\.sourceText) == ["First.", "Second.", "Third."])
+    #expect(stabilizer.segments.allSatisfy { $0.state == .committed })
+}
+
+@Test func transcriptStabilizerKeepsFinalTimestampAfterAutomaticCommit() {
+    var stabilizer = TranscriptStabilizer()
+    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "A complete sentence.", startedAt: 0))
+    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
+    _ = stabilizer.apply(.final(
+        providerSentenceID: "1",
+        text: "A complete sentence.",
+        startedAt: 0,
+        endedAt: 1.8
+    ))
+
+    #expect(stabilizer.segments.count == 1)
+    #expect(stabilizer.segments[0].endedAt == 1.8)
 }
 
 @Test func floatingCaptionCollectionBehaviorUsesCompatibleSpaceOptions() {
