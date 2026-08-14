@@ -81,8 +81,8 @@ import Testing
         )
     }
 
-    #expect(FloatingCaptionDisplayMode.bilingual.visibleSegments(from: segments).map(\.sequence) == [2, 3, 4])
-    #expect(FloatingCaptionDisplayMode.sourceOnly.visibleSegments(from: segments).map(\.sequence) == [2, 3, 4])
+    #expect(FloatingCaptionDisplayMode.bilingual.visibleSegments(from: segments).map(\.sequence) == [3, 4, 5])
+    #expect(FloatingCaptionDisplayMode.sourceOnly.visibleSegments(from: segments).map(\.sequence) == [3, 4, 5])
     #expect(FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments).map(\.sequence) == [0, 2, 4])
 }
 
@@ -278,13 +278,14 @@ import Testing
     #expect(stabilizer.segments[0].endedAt == 1.8)
 }
 
-@Test func floatingCaptionsHidePartialAndAutoCommittedSegmentsUntilFinal() {
+@Test func floatingCaptionsKeepRealtimePartialAndHideAutoCommittedSourceUntilFinal() {
     let segments = [
         CaptionSegment(sequence: 0, sourceText: "auto", translatedText: "自动", startedAt: 0, state: .autoCommitted),
-        CaptionSegment(sequence: 1, sourceText: "final", translatedText: "最终", startedAt: 1, state: .completed)
+        CaptionSegment(sequence: 1, sourceText: "partial", startedAt: 1, state: .provisional),
+        CaptionSegment(sequence: 2, sourceText: "final", translatedText: "最终", startedAt: 2, state: .completed)
     ]
 
-    #expect(FloatingCaptionDisplayMode.bilingual.visibleSegments(from: segments).map(\.sourceText) == ["final"])
+    #expect(FloatingCaptionDisplayMode.bilingual.visibleSegments(from: segments).map(\.sourceText) == ["partial", "final"])
     #expect(FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments).map(\.translatedText) == ["最终"])
 }
 

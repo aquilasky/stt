@@ -31,7 +31,7 @@ enum FloatingCaptionDisplayMode: String, CaseIterable, Identifiable, Sendable {
 
     func visibleSegments(from segments: [CaptionSegment], maximumCount: Int = 3) -> [CaptionSegment] {
         let displayableSegments = segments.filter {
-            $0.state != .provisional && $0.state != .autoCommitted
+            $0.state != .autoCommitted
         }
         let matchingSegments: [CaptionSegment]
         switch self {

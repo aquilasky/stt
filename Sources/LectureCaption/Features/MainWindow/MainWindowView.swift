@@ -13,7 +13,7 @@ struct MainWindowView: View {
 
             CaptionPreviewView(
                 segments: appState.captionSegments.filter {
-                    $0.state != .provisional && $0.state != .autoCommitted
+                    $0.state != .autoCommitted
                 },
                 liveTranslation: appState.liveTranslationText,
                 fontSize: appState.captionFontSize
