@@ -4,11 +4,13 @@ struct TranscriptStabilizer: Sendable {
     private(set) var segments: [CaptionSegment] = []
     private var provisionalIndexes: [String: Int] = [:]
     private var committedProviderIDs: Set<String> = []
+    private var autoCommittedProviderIDs: Set<String> = []
     private var nextSequence = 0
 
     mutating func beginProviderTask() {
         provisionalIndexes.removeAll()
         committedProviderIDs.removeAll()
+        autoCommittedProviderIDs.removeAll()
     }
 
     mutating func apply(_ event: TranscriptEvent) -> [CaptionSegment] {
@@ -31,6 +33,9 @@ struct TranscriptStabilizer: Sendable {
             return
         }
 
+        if autoCommittedProviderIDs.remove(id) != nil {
+            committedProviderIDs.remove(id)
+        }
         guard !committedProviderIDs.contains(id) else { return }
         provisionalIndexes[id] = segments.endIndex
         segments.append(CaptionSegment(
@@ -60,6 +65,20 @@ struct TranscriptStabilizer: Sendable {
             nextSequence += 1
         }
         committedProviderIDs.insert(id)
+    }
+
+    mutating func autoCommitPunctuatedPartial(providerSentenceID: String) -> [CaptionSegment] {
+        guard let index = provisionalIndexes[providerSentenceID],
+              segments.indices.contains(index),
+              SentenceBoundaryDetector.shouldAutoCommit(segments[index].sourceText) else {
+            return segments
+        }
+
+        provisionalIndexes.removeValue(forKey: providerSentenceID)
+        segments[index].state = .committed
+        committedProviderIDs.insert(providerSentenceID)
+        autoCommittedProviderIDs.insert(providerSentenceID)
+        return segments
     }
 
     private func normalized(_ text: String) -> String? {
