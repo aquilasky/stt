@@ -34,10 +34,6 @@ final class AppState {
     var floatingCaptionBackgroundOpacity = 0.78
     var savedSessions: [SavedLectureSession] = []
 
-    var liveTranslationText: String? {
-        captionSegments.last { $0.state == .autoCommitted && $0.translatedText != nil }?.translatedText
-    }
-
     @ObservationIgnored private let audioCaptureController = AudioCaptureController()
     @ObservationIgnored private var silenceStartedAt: TimeInterval?
     @ObservationIgnored private var sessionGeneration = 0
@@ -574,7 +570,7 @@ final class AppState {
         guard let session = activeSession else { return nil }
 
         let savedSegments = captionSegments
-            .filter { $0.state != .provisional && $0.state != .autoCommitted }
+            .filter { $0.state != .provisional }
             .sorted { $0.sequence < $1.sequence }
         guard !savedSegments.isEmpty else { return nil }
 

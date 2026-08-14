@@ -53,7 +53,7 @@ private struct SavedSessionDetailView: View {
     let fontSize: CGFloat
 
     var body: some View {
-        CaptionPreviewView(segments: record.segments, liveTranslation: nil, fontSize: fontSize)
+        CaptionPreviewView(segments: record.segments, fontSize: fontSize)
             .navigationTitle(record.session.context.courseName.isEmpty ? "课堂记录" : record.session.context.courseName)
     }
 }

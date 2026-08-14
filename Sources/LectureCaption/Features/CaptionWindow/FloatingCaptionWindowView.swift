@@ -28,7 +28,7 @@ struct FloatingCaptionWindowView: View {
 
     private var captionContent: some View {
         return VStack(alignment: .leading, spacing: 14) {
-            if displayedSegments.isEmpty && liveTranslation == nil {
+            if displayedSegments.isEmpty {
                 Label("等待字幕", systemImage: "captions.bubble")
                     .font(.system(size: appState.floatingCaptionFontSize, weight: .medium))
                     .foregroundStyle(.white.opacity(0.72))
@@ -50,27 +50,15 @@ struct FloatingCaptionWindowView: View {
                 .scrollIndicators(.automatic)
             }
 
-            if appState.floatingCaptionDisplayMode != .sourceOnly,
-               let liveTranslation {
-                Text(liveTranslation)
-                    .font(.system(size: max(13, appState.floatingCaptionFontSize - 3), weight: .medium))
-                    .foregroundStyle(.white.opacity(0.82))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .contentTransition(.opacity)
-            }
         }
     }
 
     private var captionAlignment: Alignment {
-        displayedSegments.isEmpty && liveTranslation == nil ? .center : .bottomLeading
+        displayedSegments.isEmpty ? .center : .bottomLeading
     }
 
     private var displayedSegments: [CaptionSegment] {
         appState.floatingCaptionDisplayMode.visibleSegments(from: appState.captionSegments)
-    }
-
-    private var liveTranslation: String? {
-        appState.liveTranslationText
     }
 
     private var controls: some View {

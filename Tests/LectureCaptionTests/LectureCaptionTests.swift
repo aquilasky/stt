@@ -278,25 +278,48 @@ import Testing
     #expect(stabilizer.segments[0].endedAt == 1.8)
 }
 
-@Test func floatingCaptionsKeepRealtimePartialAndHideAutoCommittedSourceUntilFinal() {
+@Test func floatingCaptionsKeepRealtimePartialAndAutoCommittedSource() {
     let segments = [
         CaptionSegment(sequence: 0, sourceText: "auto", translatedText: "自动", startedAt: 0, state: .autoCommitted),
         CaptionSegment(sequence: 1, sourceText: "partial", startedAt: 1, state: .provisional),
         CaptionSegment(sequence: 2, sourceText: "final", translatedText: "最终", startedAt: 2, state: .completed)
     ]
 
-    #expect(FloatingCaptionDisplayMode.bilingual.visibleSegments(from: segments).map(\.sourceText) == ["partial", "final"])
-    #expect(FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments).map(\.translatedText) == ["最终"])
+    #expect(FloatingCaptionDisplayMode.bilingual.visibleSegments(from: segments).map(\.sourceText) == ["auto", "partial", "final"])
+    #expect(FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments).map(\.translatedText) == ["自动", "最终"])
 }
 
-@Test @MainActor func appStateExposesTheLatestAutoCommittedTranslation() {
+@Test @MainActor func appStateKeepsAutoCommittedTranslationOnItsSegment() {
     let appState = AppState()
     appState.captionSegments = [
         CaptionSegment(sequence: 0, sourceText: "first", translatedText: "第一句", startedAt: 0, state: .autoCommitted),
         CaptionSegment(sequence: 1, sourceText: "final", translatedText: "最终句", startedAt: 1, state: .completed)
     ]
 
-    #expect(appState.liveTranslationText == "第一句")
+    #expect(appState.captionSegments[0].translatedText == "第一句")
+}
+
+@Test @MainActor func savedSessionKeepsAutoCommittedSegments() {
+    let appState = AppState()
+    let session = LectureSession(
+        context: LectureContext(
+            courseName: "Course",
+            topic: "Topic",
+            sourceLanguage: .english,
+            targetLanguage: .simplifiedChinese,
+            glossary: []
+        ),
+        provider: .aliyunRealtime
+    )
+    appState.activeSession = session
+    appState.captionSegments = [
+        CaptionSegment(sequence: 0, sourceText: "early sentence.", translatedText: "提前句子。", startedAt: 0, state: .autoCommitted),
+        CaptionSegment(sequence: 1, sourceText: "unfinished", startedAt: 1, state: .provisional)
+    ]
+
+    appState.saveCurrentSession()
+
+    #expect(appState.savedSessions.first?.segments.map(\.sourceText) == ["early sentence."])
 }
 
 @Test func transcriptStabilizerIgnoresDuplicateFinalWithDifferentProviderID() {

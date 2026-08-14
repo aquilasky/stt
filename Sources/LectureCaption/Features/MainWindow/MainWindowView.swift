@@ -12,10 +12,7 @@ struct MainWindowView: View {
             Divider()
 
             CaptionPreviewView(
-                segments: appState.captionSegments.filter {
-                    $0.state != .autoCommitted
-                },
-                liveTranslation: appState.liveTranslationText,
+                segments: appState.captionSegments,
                 fontSize: appState.captionFontSize
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
