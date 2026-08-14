@@ -39,6 +39,7 @@ final class AppState {
     @ObservationIgnored private var sessionGeneration = 0
     @ObservationIgnored private var provider: AliyunRealtimeSTTProvider?
     @ObservationIgnored private var providerEventsTask: Task<Void, Never>?
+    @ObservationIgnored private var punctuationCommitTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var transcriptStabilizer = TranscriptStabilizer()
     @ObservationIgnored private var providerIsReady = false
     @ObservationIgnored private var isFinishingProvider = false
@@ -164,6 +165,7 @@ final class AppState {
         )
         captionSegments = []
         transcriptStabilizer = TranscriptStabilizer()
+        cancelPunctuationCommitTasks()
         translatedSegmentIDs = []
         await translationQueue?.cancelAll()
         translationEventsTask?.cancel()
@@ -223,6 +225,7 @@ final class AppState {
         self.translationQueue = nil
         translationEventsTask?.cancel()
         translationEventsTask = nil
+        cancelPunctuationCommitTasks()
         activeSession?.endedAt = .now
         if let pendingSave = makeCurrentSessionSave() {
             do {
@@ -368,12 +371,21 @@ final class AppState {
             }
             providerIsReady = true
             drainProviderAudio()
-        case .partial, .final:
+        case let .partial(providerSentenceID, text, _):
             applyTranscriptUpdate(transcriptStabilizer.apply(event))
             await enqueueCommittedSegmentsForTranslation()
-            if case .final = event {
-                saveCurrentSession()
-            }
+            schedulePunctuationCommit(
+                providerSentenceID: providerSentenceID,
+                text: text,
+                provider: provider,
+                generation: sessionGeneration
+            )
+        case let .final(providerSentenceID, _, _, _):
+            punctuationCommitTasks[providerSentenceID]?.cancel()
+            punctuationCommitTasks[providerSentenceID] = nil
+            applyTranscriptUpdate(transcriptStabilizer.apply(event))
+            await enqueueCommittedSegmentsForTranslation()
+            saveCurrentSession()
         case let .failed(code, message):
             captureError = AliyunServerError(code: code, message: message).localizedDescription
             await clearProvider(provider)
@@ -408,8 +420,45 @@ final class AppState {
         drainProviderAudio()
     }
 
+    private func schedulePunctuationCommit(
+        providerSentenceID: String,
+        text: String,
+        provider: AliyunRealtimeSTTProvider,
+        generation: Int
+    ) {
+        punctuationCommitTasks[providerSentenceID]?.cancel()
+        guard SentenceBoundaryDetector.shouldAutoCommit(text) else {
+            punctuationCommitTasks[providerSentenceID] = nil
+            return
+        }
+
+        punctuationCommitTasks[providerSentenceID] = Task { [weak self] in
+            do {
+                try await Task.sleep(for: SentenceBoundaryDetector.commitDelay)
+            } catch {
+                return
+            }
+            guard let self,
+                  self.sessionGeneration == generation,
+                  self.provider === provider else { return }
+            self.punctuationCommitTasks[providerSentenceID] = nil
+            let updatedSegments = self.transcriptStabilizer.autoCommitPunctuatedPartial(
+                providerSentenceID: providerSentenceID
+            )
+            self.applyTranscriptUpdate(updatedSegments)
+            await self.enqueueCommittedSegmentsForTranslation()
+            self.saveCurrentSession()
+        }
+    }
+
+    private func cancelPunctuationCommitTasks() {
+        punctuationCommitTasks.values.forEach { $0.cancel() }
+        punctuationCommitTasks.removeAll()
+    }
+
     private func clearProvider(_ provider: AliyunRealtimeSTTProvider) async {
         guard self.provider === provider else { return }
+        cancelPunctuationCommitTasks()
         self.provider = nil
         providerEventsTask = nil
         clearPendingProviderAudio()
