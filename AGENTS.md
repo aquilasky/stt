@@ -6,8 +6,8 @@
 
 ### 1.1 严格遵守开发计划
 
-- 以 `docs/DEVELOPMENT_PLAN_1.1.md` 为当前版本的权威开发计划。
-- 严格按照计划中的 Feature 1 到 Feature 7 顺序开发；前一个 feature 未完成全部质量门禁并获得用户手工测试确认前，不得开始下一个 feature。
+- 以 `docs/DEVELOPMENT_PLAN_1.1.md` 为当前版本的权威开发计划。`docs/DEVELOPMENT_PLAN_1.2.md` 只能在 1.1.0 全部完成后生效。
+- 严格按照 1.1.0 的 Feature 1 到 Feature 5，以及随后 1.2.0 的 Feature 1 到 Feature 2 顺序开发；前一个 feature 未完成全部质量门禁并获得用户手工测试确认前，不得开始下一个 feature。
 - 不得擅自合并、拆分、跳过、提前实现或扩大 feature 范围。发现计划与代码现状冲突时，先更新计划并向用户说明，再继续实现。
 - `docs/MVP_DEVELOPMENT.md` 描述 1.0 基线架构；`docs/VERSION_CONTROL.md` 和 `docs/MANUAL_TEST_CHECKLIST.md` 分别是版本控制与手工测试的权威规范。
 - 原文识别链路优先。翻译、导出、动画和界面状态不得阻塞或改变音频采集、STT 事件处理和 `TranscriptStabilizer` 的既有行为，除非当前 feature 明确要求改变它。
@@ -104,14 +104,17 @@ swift test
 - 发布资产文件名不附带版本号；版本由 Git tag 和 GitHub Release 表示。
 - Release 构建不得意外携带 Debug 配置、Debug 历史记录、开发机 API Key 或其他本机状态。
 
-## 8. 当前 1.1.0 顺序
+## 8. 当前版本顺序
 
 1. 主窗口活动栏与 VS Code 风格可折叠侧栏。
 2. 阿里云句级时间戳与连续课堂时间轴。
 3. 历史记录 TXT/JSON 导出及时间戳选项。
 4. 主窗口原生全屏。
 5. 防止系统自动息屏。
-6. 不改变原文链路的低延迟实时翻译。
-7. 悬浮字幕最新原文下边界追踪。
 
-MiMo ASR、系统音频采集、旧记录迁移和其他未列入计划的能力不得混入 1.1.0 feature。
+1.2.0 必须在上述五项完成后开始，顺序为：
+
+1. 悬浮字幕最新原文下边界追踪。
+2. 不改变原文链路的低延迟实时翻译。
+
+MiMo ASR、系统音频采集、旧记录迁移和其他未列入计划的能力不得混入 1.1.0 或 1.2.0 feature。
