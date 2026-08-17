@@ -24,10 +24,7 @@ struct LocalCredentialsStore: Sendable {
             self.fileURL = fileURL
             return
         }
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        self.fileURL = directory
-            .appendingPathComponent("LectureCaption", isDirectory: true)
+        self.fileURL = ApplicationStorage.applicationSupportDirectory()
             .appendingPathComponent("LocalCredentials.json", isDirectory: false)
     }
 

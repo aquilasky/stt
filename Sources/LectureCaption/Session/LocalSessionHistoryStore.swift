@@ -10,12 +10,12 @@ struct SavedLectureSession: Identifiable, Codable, Sendable {
 }
 
 enum LocalSessionHistoryStoreError: LocalizedError {
-    case invalidFile
+    case invalidFile(path: String)
 
     var errorDescription: String? {
         switch self {
-        case .invalidFile:
-            "本地课堂记录文件格式无效。"
+        case let .invalidFile(path):
+            "本地课堂记录文件格式无效。请手动检查：\(path)"
         }
     }
 }
@@ -30,10 +30,7 @@ struct LocalSessionHistoryStore: Sendable {
             self.fileURL = fileURL
             return
         }
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        self.fileURL = directory
-            .appendingPathComponent("LectureCaption", isDirectory: true)
+        self.fileURL = ApplicationStorage.applicationSupportDirectory()
             .appendingPathComponent("Sessions.json", isDirectory: false)
     }
 
@@ -44,7 +41,7 @@ struct LocalSessionHistoryStore: Sendable {
             return try decoder.decode([SavedLectureSession].self, from: data)
                 .sorted { $0.startedAt > $1.startedAt }
         } catch {
-            throw LocalSessionHistoryStoreError.invalidFile
+            throw LocalSessionHistoryStoreError.invalidFile(path: fileURL.path)
         }
     }
 

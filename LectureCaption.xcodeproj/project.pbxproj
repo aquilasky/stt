@@ -144,9 +144,10 @@
 			buildSettings = {
 				CODE_SIGNING_ALLOWED = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
+				LECTURE_CAPTION_STORAGE_DIRECTORY = "LectureCaption-Debug";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.aquilasky.LectureCaption;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aquilasky.LectureCaption.debug;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
@@ -158,6 +159,7 @@
 			buildSettings = {
 				CODE_SIGNING_ALLOWED = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
+				LECTURE_CAPTION_STORAGE_DIRECTORY = LectureCaption;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aquilasky.LectureCaption;
@@ -174,7 +176,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGNING_ALLOWED = NO;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.aquilasky.LectureCaptionTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aquilasky.LectureCaption.debugTests;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LectureCaption.app/Contents/MacOS/LectureCaption";

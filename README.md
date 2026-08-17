@@ -24,4 +24,4 @@ swift test
 
 ## 本地配置
 
-API Key 以明文 JSON 保存在 `~/Library/Application Support/LectureCaption/LocalCredentials.json`，供开发版和 Release 版共用。不要将该文件、业务空间私密配置、签名材料或原始课堂音频提交到 Git；`LocalCredentials.json`、`*-apiKey-*.csv` 和 `.env` 已被 `.gitignore` 排除。
+API Key 以明文 JSON 保存在本机：Release 使用 `~/Library/Application Support/LectureCaption/LocalCredentials.json`，Debug 使用 `~/Library/Application Support/LectureCaption-Debug/LocalCredentials.json`。两者互不共用配置。不要将这些文件、业务空间私密配置、签名材料或原始课堂音频提交到 Git；`LocalCredentials.json`、`*-apiKey-*.csv` 和 `.env` 已被 `.gitignore` 排除。

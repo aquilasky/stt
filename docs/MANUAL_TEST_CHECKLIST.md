@@ -202,6 +202,28 @@ xcodebuild -project LectureCaption.xcodeproj \
 - 使用无效 Workspace ID、错误地域或无效 API Key 时，界面显示“阿里云 WebSocket 连接失败”，并提示检查 API Key、Workspace ID 和地域；不得显示 API Key。
 - 无效配置时显示清晰的连接或鉴权错误，应用不崩溃；已有字幕不丢失，麦克风本地监听仍可结束。
 
+### MAN-102 Debug 与 Release 本机配置隔离（必测）
+
+前置条件：已分别构建 Debug App 和当前 Release App；两个 App 均未运行。若现有 Release `Sessions.json` 格式无效，先手动检查或备份该文件，再准备一个可正常打开的 Release 记录库。
+
+操作：
+
+1. 启动 Debug App，在配置中填写 Workspace ID、地域和 API Key，开始并结束一段短会话，确认产生至少一条本地记录。
+2. 退出 Debug App，启动 Release App，打开配置与本地课堂记录。
+3. 在 Release App 中填写不同的 Workspace ID 或地域，开始并结束一段短会话。
+4. 退出 Release App，再次启动 Debug App，查看其配置与本地课堂记录。
+5. 在 Finder 中检查 `~/Library/Application Support/LectureCaption` 与 `~/Library/Application Support/LectureCaption-Debug`。
+
+输入：两套不同的 Workspace ID 或地域设置、各一段短会话。
+
+预期输出：
+
+- Debug 只使用 `LectureCaption-Debug`，Release 只使用 `LectureCaption`；两边的 API Key、Workspace ID、地域、课堂记录和系统麦克风授权互不影响。
+- Release 不显示 Debug 创建的课堂记录，也不复用 Debug 的 API Key 或地域；重新启动 Debug 后同样不显示 Release 新建的记录。
+- 若 Release `Sessions.json` 格式无效，应用明确提示其完整文件路径，且不自动移动、删除或修改该文件，便于手动调查问题。
+
+记录附加字段：两个目录的实际路径、两边各自可见的课堂记录数量、配置值是否交叉、无效文件报错中的路径，以及 Release 重启后的记录数量。
+
 ### MAN-200 DeepSeek 实时翻译与术语上下文（必测）
 
 前置条件：阿里云实时原文识别可用；具有有效 DeepSeek API Key；课程名称填写 `Machine Learning`，主题填写 `Optimization`，术语表包含 `learning rate=学习率`。
