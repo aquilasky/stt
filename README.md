@@ -283,15 +283,16 @@ shasum -a 256 Release/LectureCaption.zip Release/LectureCaption.dmg
 - 仅支持默认麦克风输入；不采集浏览器、会议软件或播放器的系统音频。
 - 仅支持 Apple Silicon，未针对 Intel Mac 优化或发布。
 - MiMo ASR 已推迟到 MVP 后评估。
-- DeepSeek 当前只翻译 final 原文，尚未实现 partial 流式低延迟翻译。
+- DeepSeek 当前只翻译 final 原文；partial 流式低延迟翻译属于 `1.2.0` 计划的最后一个 feature。
 - 历史记录目前只能在应用内查看，TXT/JSON 导出尚未实现。
-- 主窗口原生全屏、防息屏和新的 VS Code 风格侧栏属于 `1.1.0` 计划，当前版本尚未提供。
+- 主窗口原生全屏、防息屏和新的 VS Code 风格侧栏属于 `1.1.0` 计划；悬浮字幕下边界追踪属于后续 `1.2.0` 计划，当前版本尚未提供。
 - 应用未经过 Apple 公证，也没有自动更新机制。
 - 2 小时稳定性和完整睡眠/唤醒恢复仍需继续验证。
 
 ## 开发文档
 
 - [1.1.0 开发计划](docs/DEVELOPMENT_PLAN_1.1.md)
+- [1.2.0 开发计划](docs/DEVELOPMENT_PLAN_1.2.md)
 - [MVP 架构与实现说明](docs/MVP_DEVELOPMENT.md)
 - [版本控制与 Pull Request 规范](docs/VERSION_CONTROL.md)
 - [手工测试清单](docs/MANUAL_TEST_CHECKLIST.md)
