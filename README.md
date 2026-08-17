@@ -13,7 +13,7 @@ swift test
 
 正式打包使用 `Scripts/create-release.sh`；输出为 `Release/LectureCaption.app`、`Release/LectureCaption.zip` 与 `Release/LectureCaption.dmg`，版本号保留在应用元数据和 GitHub Release 标签中。
 
-1.0.0 已提供：
+1.0.1 已提供：
 
 - 主窗口、课程上下文、术语表和会话控制 UI。
 - 麦克风音频采集、本地输入活动检测、自动待机和手动暂停。
@@ -22,7 +22,7 @@ swift test
 - 本地 JSON 课堂记录与历史查看。
 - 跨桌面、全屏可见且不抢键盘焦点的悬浮双语字幕窗。
 
-当前限制：仅支持麦克风输入；系统音频采集和 MiMo 分块 ASR 均已推迟到后续版本。课堂记录目前可在应用内查看，Markdown/JSON 导出和完整的睡眠恢复验证不包含在 1.0.0。实现约束见 [MVP 开发文档](docs/MVP_DEVELOPMENT.md)，协作流程见 [版本控制与 Pull Request 规范](docs/VERSION_CONTROL.md)。
+当前限制：仅支持麦克风输入；系统音频采集和 MiMo 分块 ASR 均已推迟到后续版本。课堂记录目前可在应用内查看，Markdown/JSON 导出和完整的睡眠恢复验证不包含在 1.0.1。实现约束见 [MVP 开发文档](docs/MVP_DEVELOPMENT.md)，协作流程见 [版本控制与 Pull Request 规范](docs/VERSION_CONTROL.md)。
 
 ## 本地配置
 
