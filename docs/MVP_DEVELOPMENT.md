@@ -104,7 +104,7 @@ MVP 使用阿里云百炼实时语音识别 WebSocket API 作为原文转写服�
 - Workspace：URL 中使用真实 Workspace ID；可同时发送 `X-DashScope-WorkSpace` 请求头。
 - 音频：二进制 PCM、16 kHz、单声道。
 - 连接模式：`duplex`，客户端发送音频的同时接收增量结果。
-- 断句：MVP 默认使用低延迟 VAD 断句，`semantic_punctuation_enabled=false`。
+- 断句：启用阿里云语义标点，`semantic_punctuation_enabled=true`；本地仍按 STT 的 partial/final 生命周期稳定字幕。
 - 静音阈值：先使用默认 `max_sentence_silence=1300` ms，通过真实课堂测试后再调整。
 - 心跳：设置 `heartbeat=true`，覆盖小于自动待机阈值的短暂停顿；达到自动待机阈值后仍主动结束任务。
 - 专业词：将会话术语表映射为 `vocabulary` 即时热词，权重默认 3；不要默认使用权重 50。
@@ -399,7 +399,7 @@ protocol SpeechRecognitionProvider: Sendable {
     "parameters": {
       "format": "pcm",
       "sample_rate": 16000,
-      "semantic_punctuation_enabled": false,
+      "semantic_punctuation_enabled": true,
       "max_sentence_silence": 1300,
       "heartbeat": true,
       "language_hints": ["en"],

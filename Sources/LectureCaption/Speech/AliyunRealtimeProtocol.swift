@@ -51,7 +51,7 @@ enum AliyunRealtimeProtocol {
         let parameters = RunTaskParameters(
             format: "pcm",
             sampleRate: Int(speech.sampleRate.rounded()),
-            semanticPunctuationEnabled: false,
+            semanticPunctuationEnabled: true,
             maxSentenceSilence: 1_300,
             heartbeat: true,
             languageHints: languageHints(for: speech.sourceLanguage),
