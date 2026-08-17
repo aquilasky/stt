@@ -140,228 +140,6 @@ import Testing
     #expect(initialAnchor != updatedAnchor)
 }
 
-@Test func sentenceBoundaryDetectorDistinguishesTerminalPeriodsFromDecimals() {
-    #expect(SentenceBoundaryDetector.shouldAutoCommit("The value is 3.14") == false)
-    #expect(SentenceBoundaryDetector.shouldAutoCommit("The value is 3.") == false)
-    #expect(SentenceBoundaryDetector.shouldAutoCommit("The value is 3.14.") == true)
-    #expect(SentenceBoundaryDetector.shouldAutoCommit("The training is complete.") == true)
-    #expect(SentenceBoundaryDetector.shouldAutoCommit("训练完成。") == true)
-    #expect(SentenceBoundaryDetector.split(atFirstBoundaryIn: "第一句。第二句还没说完")?.committed == "第一句。")
-    #expect(SentenceBoundaryDetector.split(atFirstBoundaryIn: "第一句。第二句还没说完")?.remainder == "第二句还没说完")
-}
-
-@Test func transcriptStabilizerAutoCommitsPunctuatedPartialAndAllowsNextSentence() {
-    var stabilizer = TranscriptStabilizer()
-    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The value is 3.14", startedAt: 0))
-    #expect(stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1").last?.state == .provisional)
-
-    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The value is complete.", startedAt: 0))
-    let committed = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
-    #expect(committed[0].state == .autoCommitted)
-    #expect(committed[0].sourceText == "The value is complete.")
-
-    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The next sentence", startedAt: 1))
-    #expect(stabilizer.segments.count == 2)
-    #expect(stabilizer.segments[1].state == .provisional)
-}
-
-@Test func transcriptStabilizerAppliesLateFinalCorrectionToAutoCommittedSegment() {
-    var stabilizer = TranscriptStabilizer()
-    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The first version.", startedAt: 0))
-    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
-
-    _ = stabilizer.apply(.final(
-        providerSentenceID: "1",
-        text: "The corrected first version.",
-        startedAt: 0,
-        endedAt: 1.4
-    ))
-
-    #expect(stabilizer.segments.count == 1)
-    #expect(stabilizer.segments[0].sourceText == "The corrected first version.")
-    #expect(stabilizer.segments[0].endedAt == 1.4)
-}
-
-@Test func transcriptStabilizerExtractsContinuationFromCumulativePartialAfterAutoCommit() {
-    var stabilizer = TranscriptStabilizer()
-    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The first sentence.", startedAt: 0))
-    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
-    _ = stabilizer.apply(.partial(
-        providerSentenceID: "1",
-        text: "The first sentence. The second sentence",
-        startedAt: 1
-    ))
-
-    #expect(stabilizer.segments.count == 2)
-    #expect(stabilizer.segments[0].sourceText == "The first sentence.")
-    #expect(stabilizer.segments[1].sourceText == "The second sentence")
-    #expect(stabilizer.segments[1].state == .provisional)
-}
-
-@Test func transcriptStabilizerFinalizesOnlyContinuationAfterCumulativePartial() {
-    var stabilizer = TranscriptStabilizer()
-    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The first sentence.", startedAt: 0))
-    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
-    _ = stabilizer.apply(.partial(
-        providerSentenceID: "1",
-        text: "The first sentence. The second sentence",
-        startedAt: 1
-    ))
-    _ = stabilizer.apply(.final(
-        providerSentenceID: "1",
-        text: "The first sentence. The second sentence.",
-        startedAt: 1,
-        endedAt: 2
-    ))
-
-    #expect(stabilizer.segments.count == 2)
-    #expect(stabilizer.segments[0].sourceText == "The first sentence.")
-    #expect(stabilizer.segments[1].sourceText == "The second sentence.")
-    #expect(stabilizer.segments[1].state == .committed)
-}
-
-@Test func transcriptStabilizerSplitsMultipleSentencesFromCumulativePartial() {
-    var stabilizer = TranscriptStabilizer()
-    _ = stabilizer.apply(.partial(
-        providerSentenceID: "1",
-        text: "First sentence. Second sentence",
-        startedAt: 0
-    ))
-    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
-
-    #expect(stabilizer.segments.map(\.sourceText) == ["First sentence.", "Second sentence"])
-    #expect(stabilizer.segments[0].state == .autoCommitted)
-    #expect(stabilizer.segments[1].state == .provisional)
-
-    _ = stabilizer.apply(.partial(
-        providerSentenceID: "1",
-        text: "First sentence. Second sentence.",
-        startedAt: 1
-    ))
-    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
-    _ = stabilizer.apply(.final(
-        providerSentenceID: "1",
-        text: "First sentence. Second sentence.",
-        startedAt: 0,
-        endedAt: 2
-    ))
-
-    #expect(stabilizer.segments.map(\.sourceText) == ["First sentence.", "Second sentence."])
-    #expect(stabilizer.segments.allSatisfy { $0.state == .committed })
-}
-
-@Test func transcriptStabilizerSplitsAllCompletedSentencesFromOnePartial() {
-    var stabilizer = TranscriptStabilizer()
-    _ = stabilizer.apply(.partial(
-        providerSentenceID: "1",
-        text: "First. Second. Third.",
-        startedAt: 0
-    ))
-    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
-
-    #expect(stabilizer.segments.map(\.sourceText) == ["First.", "Second.", "Third."])
-    #expect(stabilizer.segments.allSatisfy { $0.state == .autoCommitted })
-}
-
-@Test func transcriptStabilizerKeepsFinalTimestampAfterAutomaticCommit() {
-    var stabilizer = TranscriptStabilizer()
-    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "A complete sentence.", startedAt: 0))
-    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
-    _ = stabilizer.apply(.final(
-        providerSentenceID: "1",
-        text: "A complete sentence.",
-        startedAt: 0,
-        endedAt: 1.8
-    ))
-
-    #expect(stabilizer.segments.count == 1)
-    #expect(stabilizer.segments[0].endedAt == 1.8)
-}
-
-@Test func floatingCaptionsKeepRealtimePartialAndAutoCommittedSource() {
-    let segments = [
-        CaptionSegment(sequence: 0, sourceText: "auto", translatedText: "自动", startedAt: 0, state: .autoCommitted),
-        CaptionSegment(sequence: 1, sourceText: "partial", startedAt: 1, state: .provisional),
-        CaptionSegment(sequence: 2, sourceText: "final", translatedText: "最终", startedAt: 2, state: .completed)
-    ]
-
-    #expect(FloatingCaptionDisplayMode.bilingual.visibleSegments(from: segments).map(\.sourceText) == ["auto", "partial", "final"])
-    #expect(FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments).map(\.translatedText) == ["自动", "最终"])
-}
-
-@Test @MainActor func appStateKeepsAutoCommittedTranslationOnItsSegment() {
-    let appState = AppState()
-    appState.captionSegments = [
-        CaptionSegment(sequence: 0, sourceText: "first", translatedText: "第一句", startedAt: 0, state: .autoCommitted),
-        CaptionSegment(sequence: 1, sourceText: "final", translatedText: "最终句", startedAt: 1, state: .completed)
-    ]
-
-    #expect(appState.captionSegments[0].translatedText == "第一句")
-}
-
-@Test @MainActor func savedSessionKeepsAutoCommittedSegments() {
-    let appState = AppState()
-    let session = LectureSession(
-        context: LectureContext(
-            courseName: "Course",
-            topic: "Topic",
-            sourceLanguage: .english,
-            targetLanguage: .simplifiedChinese,
-            glossary: []
-        ),
-        provider: .aliyunRealtime
-    )
-    appState.activeSession = session
-    appState.captionSegments = [
-        CaptionSegment(sequence: 0, sourceText: "early sentence.", translatedText: "提前句子。", startedAt: 0, state: .autoCommitted),
-        CaptionSegment(sequence: 1, sourceText: "unfinished", startedAt: 1, state: .provisional)
-    ]
-
-    appState.saveCurrentSession()
-
-    #expect(appState.savedSessions.first?.segments.map(\.sourceText) == ["early sentence."])
-}
-
-@Test func transcriptStabilizerIgnoresDuplicateFinalWithDifferentProviderID() {
-    var stabilizer = TranscriptStabilizer()
-    let final = TranscriptEvent.final(
-        providerSentenceID: "1",
-        text: "A final sentence.",
-        startedAt: 0,
-        endedAt: 1
-    )
-    _ = stabilizer.apply(final)
-    _ = stabilizer.apply(.final(
-        providerSentenceID: "2",
-        text: "A final sentence.",
-        startedAt: 0,
-        endedAt: 1
-    ))
-
-    #expect(stabilizer.segments.count == 1)
-    #expect(stabilizer.segments[0].sourceText == "A final sentence.")
-}
-
-@Test func transcriptStabilizerReplacesAutoCommittedSegmentsWhenFinalCorrectsTheirPrefix() {
-    var stabilizer = TranscriptStabilizer()
-    _ = stabilizer.apply(.partial(
-        providerSentenceID: "1",
-        text: "First sentence. Second sentence.",
-        startedAt: 0
-    ))
-    _ = stabilizer.autoCommitPunctuatedPartial(providerSentenceID: "1")
-    _ = stabilizer.apply(.final(
-        providerSentenceID: "1",
-        text: "Corrected first sentence. Second sentence.",
-        startedAt: 0,
-        endedAt: 2
-    ))
-
-    #expect(stabilizer.segments.count == 1)
-    #expect(stabilizer.segments[0].sourceText == "Corrected first sentence. Second sentence.")
-    #expect(stabilizer.segments[0].state == .committed)
-}
-
 @Test func floatingCaptionCollectionBehaviorUsesCompatibleSpaceOptions() {
     let behavior = FloatingCaptionWindowBehavior.collectionBehavior
 
@@ -496,7 +274,6 @@ import Testing
     #expect(header["streaming"] as? String == "duplex")
     #expect(payload["model"] as? String == "qwen-audio-3.0-asr-flash-streaming")
     #expect(parameters["sample_rate"] as? Int == 16_000)
-    #expect(parameters["semantic_punctuation_enabled"] as? Bool == true)
     #expect(parameters["language_hints"] as? [String] == ["en"])
     #expect((parameters["vocabulary"] as? [String: Int])?["gradient descent"] == 3)
 }
@@ -764,8 +541,8 @@ import Testing
     await queue.enqueue(translationRequest(id: secondID, source: "second"))
 
     var iterator = events.makeAsyncIterator()
-    #expect(await iterator.next() == .failed(segmentID: firstID, sourceText: "first"))
-    #expect(await iterator.next() == .translated(segmentID: secondID, sourceText: "second", text: "第二句译文"))
+    #expect(await iterator.next() == .failed(segmentID: firstID))
+    #expect(await iterator.next() == .translated(segmentID: secondID, text: "第二句译文"))
     #expect(await provider.receivedSegmentIDs == [firstID, secondID])
 }
 
@@ -782,8 +559,8 @@ import Testing
     ])
 
     var iterator = events.makeAsyncIterator()
-    #expect(await iterator.next() == .translated(segmentID: firstID, sourceText: "first", text: "first translation"))
-    #expect(await iterator.next() == .translated(segmentID: secondID, sourceText: "second", text: "second translation"))
+    #expect(await iterator.next() == .translated(segmentID: firstID, text: "first translation"))
+    #expect(await iterator.next() == .translated(segmentID: secondID, text: "second translation"))
     #expect(await provider.receivedSegmentIDs == [firstID, secondID])
 }
 
@@ -803,7 +580,7 @@ import Testing
     await newQueue.enqueue(translationRequest(id: segmentID, source: "new source"))
 
     var iterator = newEvents.makeAsyncIterator()
-    #expect(await iterator.next() == .translated(segmentID: segmentID, sourceText: "new source", text: "new"))
+    #expect(await iterator.next() == .translated(segmentID: segmentID, text: "new"))
 }
 
 @Test func aliyunDNSFailureHasActionableHandshakeError() async throws {

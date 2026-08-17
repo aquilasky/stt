@@ -60,9 +60,7 @@ struct MainWindowView: View {
                 Button(action: appState.saveCurrentSession) {
                     Label("保存记录", systemImage: "tray.and.arrow.down")
                 }
-                .disabled(appState.captionSegments.allSatisfy {
-                    $0.state == .provisional || $0.state == .autoCommitted
-                })
+                .disabled(appState.captionSegments.allSatisfy { $0.state == .provisional })
 
                 Toggle(isOn: $appState.isFloatingCaptionVisible) {
                     Label("悬浮字幕", systemImage: "rectangle.on.rectangle")

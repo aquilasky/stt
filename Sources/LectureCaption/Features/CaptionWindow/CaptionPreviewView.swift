@@ -10,7 +10,7 @@ struct CaptionPreviewView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        Group {
             if segments.isEmpty {
                 ContentUnavailableView(
                     "等待字幕",
@@ -53,7 +53,6 @@ struct CaptionPreviewView: View {
                     }
                 }
             }
-
         }
         .background(.regularMaterial)
     }

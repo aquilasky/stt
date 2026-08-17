@@ -27,14 +27,12 @@ struct FloatingCaptionWindowView: View {
     }
 
     private var captionContent: some View {
-        return VStack(alignment: .leading, spacing: 14) {
+        return Group {
             if displayedSegments.isEmpty {
                 Label("等待字幕", systemImage: "captions.bubble")
                     .font(.system(size: appState.floatingCaptionFontSize, weight: .medium))
                     .foregroundStyle(.white.opacity(0.72))
-            }
-
-            if !displayedSegments.isEmpty {
+            } else {
                 ScrollView(.vertical) {
                     LazyVStack(alignment: .leading, spacing: 16) {
                         ForEach(displayedSegments) { segment in
@@ -49,7 +47,6 @@ struct FloatingCaptionWindowView: View {
                 }
                 .scrollIndicators(.automatic)
             }
-
         }
     }
 
