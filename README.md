@@ -11,6 +11,8 @@ swift test
 
 在 Xcode 中打开 `LectureCaption.xcodeproj` 后，选择 `LectureCaption` scheme 运行。`Resources/Info.plist` 仅声明麦克风权限用途。
 
+正式打包使用 `Scripts/create-release.sh`；输出为 `Release/LectureCaption.app`、`Release/LectureCaption.zip` 与 `Release/LectureCaption.dmg`，版本号保留在应用元数据和 GitHub Release 标签中。
+
 1.0.0 已提供：
 
 - 主窗口、课程上下文、术语表和会话控制 UI。
