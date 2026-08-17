@@ -323,6 +323,15 @@ import Testing
     #expect(try store.loadDeepSeekAPIKey() == "deepseek-key")
 }
 
+@Test func applicationStorageUsesConfiguredDirectoryAndDebugFallback() {
+    #expect(ApplicationStorage.directoryName(configuredName: "LectureCaption-Release") == "LectureCaption-Release")
+    #if DEBUG
+    #expect(ApplicationStorage.directoryName(configuredName: nil) == "LectureCaption-Debug")
+    #else
+    #expect(ApplicationStorage.directoryName(configuredName: nil) == "LectureCaption")
+    #endif
+}
+
 @Test func localSessionHistoryStorePersistsCompleteSessionAndReplacesSameID() throws {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -367,6 +376,39 @@ import Testing
     #expect(replacement.count == 1)
     #expect(replacement[0].segments.count == 1)
     #expect(try store.remove(id: session.id).isEmpty)
+}
+
+@Test func localSessionHistoryStoreKeepsAnInvalidFileForManualInvestigation() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let fileURL = directory.appendingPathComponent("Sessions.json")
+    let store = LocalSessionHistoryStore(fileURL: fileURL)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let invalidData = Data("not valid JSON".utf8)
+    try invalidData.write(to: fileURL)
+
+    let error = #expect(throws: LocalSessionHistoryStoreError.self) { try store.load() }
+    #expect(try #require(error).localizedDescription.contains(fileURL.path))
+
+    let record = SavedLectureSession(
+        session: LectureSession(
+            context: LectureContext(
+                courseName: "Investigation",
+                topic: "Invalid history file",
+                sourceLanguage: .english,
+                targetLanguage: .simplifiedChinese,
+                glossary: []
+            ),
+            provider: .aliyunRealtime
+        ),
+        segments: []
+    )
+    #expect(throws: LocalSessionHistoryStoreError.self) { try store.save(record) }
+    #expect(throws: LocalSessionHistoryStoreError.self) { try store.remove(id: record.id) }
+    #expect(FileManager.default.fileExists(atPath: fileURL.path))
+    #expect(try Data(contentsOf: fileURL) == invalidData)
 }
 
 @Test func localSessionHistoryWriterCoalescesRapidSessionSnapshots() async throws {

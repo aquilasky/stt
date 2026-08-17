@@ -22,6 +22,8 @@
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
+    <key>LectureCaptionStorageDirectory</key>
+    <string>$(LECTURE_CAPTION_STORAGE_DIRECTORY)</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>LectureCaption uses the microphone to generate live lecture captions.</string>
     <key>NSPrincipalClass</key>

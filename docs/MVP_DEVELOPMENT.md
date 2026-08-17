@@ -549,7 +549,7 @@ DeepSeek V4 Flash 在 MVP 中只承担文本翻译：
 
 ### 6.9 本地凭据与日志
 
-- 阿里云百炼与 DeepSeek API Key 只存放在本机 `~/Library/Application Support/LectureCaption/LocalCredentials.json`，不写入日志、导出或 Git。
+- 阿里云百炼与 DeepSeek API Key 只存放在本机：Release 为 `~/Library/Application Support/LectureCaption/LocalCredentials.json`，Debug 为 `~/Library/Application Support/LectureCaption-Debug/LocalCredentials.json`；不写入日志、导出或 Git。
 - 阿里云 Workspace ID 不是密钥，可存入 `UserDefaults`；但不得把它误用为 API Key 或写入鉴权 Header。
 - UI 中默认遮蔽密钥，仅提供替换和删除操作。
 - 禁止将密钥写入 `UserDefaults`、plist、本地课堂记录、导出文件和日志。
