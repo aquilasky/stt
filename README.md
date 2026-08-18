@@ -285,7 +285,7 @@ shasum -a 256 Release/LectureCaption.zip Release/LectureCaption.dmg
 - MiMo ASR 已推迟到 MVP 后评估。
 - DeepSeek 当前只翻译 final 原文；partial 流式低延迟翻译属于 `1.2.0` 计划的最后一个 feature。
 - 历史记录目前只能在应用内查看，TXT/JSON 导出尚未实现。
-- 主窗口原生全屏、防息屏和新的 VS Code 风格侧栏属于 `1.1.0` 计划；悬浮字幕下边界追踪属于后续 `1.2.0` 计划，当前版本尚未提供。
+- 主窗口原生全屏与防息屏属于 `1.1.0` 计划；悬浮字幕下边界追踪属于后续 `1.2.0` 计划，当前版本尚未提供。
 - 应用未经过 Apple 公证，也没有自动更新机制。
 - 2 小时稳定性和完整睡眠/唤醒恢复仍需继续验证。
 
