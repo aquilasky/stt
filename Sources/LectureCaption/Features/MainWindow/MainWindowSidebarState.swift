@@ -1,21 +1,24 @@
 import CoreGraphics
 
 enum MainWindowSidebarSection: CaseIterable, Identifiable {
-    case configuration
+    case apiConfiguration
+    case courseConfiguration
     case history
 
     var id: Self { self }
 
     var title: String {
         switch self {
-        case .configuration: "配置"
+        case .apiConfiguration: "API 与识别"
+        case .courseConfiguration: "课程"
         case .history: "课堂记录"
         }
     }
 
     var symbolName: String {
         switch self {
-        case .configuration: "slider.horizontal.3"
+        case .apiConfiguration: "key.horizontal"
+        case .courseConfiguration: "book.closed"
         case .history: "clock.arrow.circlepath"
         }
     }
@@ -24,7 +27,7 @@ enum MainWindowSidebarSection: CaseIterable, Identifiable {
 struct MainWindowSidebarState: Equatable {
     private(set) var selectedSection: MainWindowSidebarSection?
 
-    init(selectedSection: MainWindowSidebarSection? = .configuration) {
+    init(selectedSection: MainWindowSidebarSection? = .apiConfiguration) {
         self.selectedSection = selectedSection
     }
 

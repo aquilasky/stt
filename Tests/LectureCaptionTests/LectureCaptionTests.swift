@@ -107,10 +107,10 @@ import Testing
 @Test func sidebarStateTogglesTheSelectedActivity() {
     var state = MainWindowSidebarState()
 
-    #expect(state.selectedSection == .configuration)
+    #expect(state.selectedSection == .apiConfiguration)
     #expect(state.isVisible)
 
-    state.activate(.configuration)
+    state.activate(.apiConfiguration)
     #expect(state.selectedSection == nil)
     #expect(!state.isVisible)
 
@@ -121,8 +121,8 @@ import Testing
 @Test func sidebarStateSwitchesActivitiesAndClampsWidth() {
     var state = MainWindowSidebarState(selectedSection: .history)
 
-    state.activate(.configuration)
-    #expect(state.selectedSection == .configuration)
+    state.activate(.courseConfiguration)
+    #expect(state.selectedSection == .courseConfiguration)
 
     state.hide()
     #expect(state.selectedSection == nil)
