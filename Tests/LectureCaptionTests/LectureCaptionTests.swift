@@ -94,14 +94,14 @@ import Testing
     #expect(CaptionFocusLevel.standard.opacity == 1)
 }
 
-@Test func captionFocusOrderKeepsAllProvisionalSegmentsBelowConfirmedContent() {
+@Test func captionFocusOrderKeepsOnlyTheLatestProvisionalSegmentBelowConfirmedContent() {
     let firstProvisional = CaptionSegment(sequence: 0, sourceText: "first partial", startedAt: 0, state: .provisional)
     let confirmed = CaptionSegment(sequence: 1, sourceText: "confirmed", startedAt: 1, state: .completed)
     let secondProvisional = CaptionSegment(sequence: 2, sourceText: "second partial", startedAt: 2, state: .provisional)
 
     let displayed = CaptionFocusLevel.orderedSegments([firstProvisional, confirmed, secondProvisional])
 
-    #expect(displayed.map(\.id) == [confirmed.id, firstProvisional.id, secondProvisional.id])
+    #expect(displayed.map(\.id) == [confirmed.id, secondProvisional.id])
 }
 
 @Test func captionFocusAnchorTracksLatestContentAndLayout() {
