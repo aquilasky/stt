@@ -16,7 +16,9 @@ enum CaptionFocusLevel: Equatable {
     }
 
     static func orderedSegments(_ segments: [CaptionSegment]) -> [CaptionSegment] {
-        segments.filter { $0.state != .provisional } + segments.filter { $0.state == .provisional }
+        let confirmedSegments = segments.filter { $0.state != .provisional }
+        let latestProvisionalSegment = segments.last { $0.state == .provisional }
+        return confirmedSegments + (latestProvisionalSegment.map { [$0] } ?? [])
     }
 
     var sourceScale: CGFloat {
