@@ -2,20 +2,16 @@ import SwiftUI
 
 struct MainWindowView: View {
     @Bindable var appState: AppState
-    @State private var showsConfiguration = false
-    @State private var showsHistory = false
+    @State private var sidebarState = MainWindowSidebarState()
+    @State private var sidebarWidth = MainWindowSidebarLayout.defaultWidth
+    @State private var selectedSavedSessionID: UUID?
     @State private var floatingCaptionController = FloatingCaptionWindowController()
 
     var body: some View {
-        VStack(spacing: 0) {
-            controlStrip
-            Divider()
-
-            CaptionPreviewView(
-                segments: appState.captionSegments,
-                fontSize: appState.captionFontSize
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        HStack(spacing: 0) {
+            activityBar
+            sidebarContainer
+            workspace
         }
         .alert(
             "无法开始采集",
@@ -67,21 +63,6 @@ struct MainWindowView: View {
                 }
                 .help("显示或隐藏悬浮字幕")
 
-                Menu {
-                    Button {
-                        showsConfiguration = true
-                    } label: {
-                        Label("课程与识别配置", systemImage: "slider.horizontal.3")
-                    }
-                    Button {
-                        showsHistory = true
-                    } label: {
-                        Label("本地课堂记录", systemImage: "clock.arrow.circlepath")
-                    }
-                } label: {
-                    Label("更多", systemImage: "ellipsis.circle")
-                }
-
                 Button(action: appState.decreaseCaptionFontSize) {
                     Label("减小字幕字号", systemImage: "textformat.size.smaller")
                 }
@@ -93,15 +74,106 @@ struct MainWindowView: View {
                 .disabled(!appState.canIncreaseCaptionFontSize)
             }
         }
-        .sheet(isPresented: $showsConfiguration) {
-            ConfigurationView(appState: appState)
-        }
-        .sheet(isPresented: $showsHistory) {
-            SessionHistoryView(appState: appState)
-        }
         .onChange(of: appState.isFloatingCaptionVisible, initial: true) { _, isVisible in
             floatingCaptionController.setVisible(isVisible, appState: appState)
         }
+    }
+
+    private var activityBar: some View {
+        VStack(spacing: 4) {
+            ForEach(MainWindowSidebarSection.allCases) { section in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        sidebarState.activate(section)
+                    }
+                } label: {
+                    Image(systemName: section.symbolName)
+                        .frame(width: 36, height: 36)
+                        .background {
+                            RoundedRectangle(cornerRadius: 5)
+                                .fill(sidebarState.selectedSection == section ? Color.accentColor.opacity(0.18) : .clear)
+                        }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(sidebarState.selectedSection == section ? Color.accentColor : .secondary)
+                .help(section.title)
+                .accessibilityLabel(section.title)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 8)
+        .frame(width: 44)
+        .background(.bar)
+    }
+
+    private var sidebarContainer: some View {
+        HStack(spacing: 0) {
+            sidebarContent
+                .frame(width: sidebarWidth)
+
+            SidebarResizeHandle(width: $sidebarWidth)
+        }
+        .frame(
+            width: sidebarState.isVisible ? sidebarWidth + MainWindowSidebarLayout.resizeHandleWidth : 0,
+            alignment: .leading
+        )
+        .opacity(sidebarState.isVisible ? 1 : 0)
+        .allowsHitTesting(sidebarState.isVisible)
+        .clipped()
+        .animation(.easeInOut(duration: 0.18), value: sidebarState.isVisible)
+    }
+
+    @ViewBuilder
+    private var sidebarContent: some View {
+        switch sidebarState.selectedSection {
+        case .configuration:
+            ConfigurationSidebar(appState: appState) {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    sidebarState.hide()
+                }
+            }
+        case .history:
+            SessionHistorySidebar(
+                appState: appState,
+                selectedSessionID: $selectedSavedSessionID,
+                onClose: {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        sidebarState.hide()
+                    }
+                }
+            )
+        case nil:
+            EmptyView()
+        }
+    }
+
+    private var workspace: some View {
+        VStack(spacing: 0) {
+            controlStrip
+            Divider()
+
+            ZStack {
+                CaptionPreviewView(
+                    segments: appState.captionSegments,
+                    fontSize: appState.captionFontSize
+                )
+
+                if let selectedSavedSession {
+                    SavedSessionDetailWorkspace(record: selectedSavedSession, fontSize: appState.captionFontSize) {
+                        selectedSavedSessionID = nil
+                    }
+                    .transition(.opacity)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var selectedSavedSession: SavedLectureSession? {
+        guard let selectedSavedSessionID else { return nil }
+        return appState.savedSessions.first { $0.id == selectedSavedSessionID }
     }
 
     private var controlStrip: some View {
@@ -132,26 +204,19 @@ struct MainWindowView: View {
 
 }
 
-private struct ConfigurationView: View {
+struct ConfigurationSidebar: View {
     @Bindable var appState: AppState
-    @Environment(\.dismiss) private var dismiss
+    let onClose: () -> Void
     @State private var newTerm = ""
     @State private var newTranslation = ""
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("课程与识别配置")
-                    .font(.headline)
-                Spacer()
-                Button("完成") { dismiss() }
-            }
-            .padding()
-            Divider()
+            SidebarHeader(title: "配置", onClose: onClose)
 
             configurationForm
         }
-        .frame(width: 500, height: 680)
+        .background(.regularMaterial)
     }
 
     private var configurationForm: some View {
@@ -234,5 +299,53 @@ private struct ConfigurationView: View {
         }
         .formStyle(.grouped)
         .padding(.horizontal, 12)
+    }
+}
+
+private struct SidebarResizeHandle: View {
+    @Binding var width: CGFloat
+    @State private var dragOrigin: CGFloat?
+
+    var body: some View {
+        Rectangle()
+            .fill(.separator.opacity(0.55))
+            .frame(width: MainWindowSidebarLayout.resizeHandleWidth)
+            .contentShape(Rectangle())
+            .help("拖动调整侧栏宽度")
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if dragOrigin == nil {
+                            dragOrigin = width
+                        }
+                        guard let dragOrigin else { return }
+                        width = MainWindowSidebarLayout.clampedWidth(dragOrigin + value.translation.width)
+                    }
+                    .onEnded { _ in
+                        dragOrigin = nil
+                    }
+            )
+    }
+}
+
+struct SidebarHeader: View {
+    let title: String
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.headline)
+            Spacer()
+            Button(action: onClose) {
+                Image(systemName: "sidebar.left")
+            }
+            .buttonStyle(.borderless)
+            .help("收起侧栏")
+            .accessibilityLabel("收起侧栏")
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 44)
+        Divider()
     }
 }

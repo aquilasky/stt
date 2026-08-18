@@ -104,6 +104,33 @@ import Testing
     #expect(displayed.map(\.id) == [confirmed.id, secondProvisional.id])
 }
 
+@Test func sidebarStateTogglesTheSelectedActivity() {
+    var state = MainWindowSidebarState()
+
+    #expect(state.selectedSection == .configuration)
+    #expect(state.isVisible)
+
+    state.activate(.configuration)
+    #expect(state.selectedSection == nil)
+    #expect(!state.isVisible)
+
+    state.activate(.history)
+    #expect(state.selectedSection == .history)
+}
+
+@Test func sidebarStateSwitchesActivitiesAndClampsWidth() {
+    var state = MainWindowSidebarState(selectedSection: .history)
+
+    state.activate(.configuration)
+    #expect(state.selectedSection == .configuration)
+
+    state.hide()
+    #expect(state.selectedSection == nil)
+    #expect(MainWindowSidebarLayout.clampedWidth(100) == MainWindowSidebarLayout.minimumWidth)
+    #expect(MainWindowSidebarLayout.clampedWidth(500) == MainWindowSidebarLayout.maximumWidth)
+    #expect(MainWindowSidebarLayout.clampedWidth(360) == 360)
+}
+
 @Test func captionFocusAnchorTracksLatestContentAndLayout() {
     let segmentID = UUID()
     let provisional = CaptionSegment(
