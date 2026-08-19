@@ -17,7 +17,11 @@ struct SessionHistoryView: View {
                     List {
                         ForEach(appState.savedSessions) { record in
                             NavigationLink {
-                                SavedSessionDetailView(record: record, fontSize: appState.captionFontSize)
+                                SavedSessionDetailView(
+                                    record: record,
+                                    fontSize: appState.captionFontSize,
+                                    showsTimestamps: appState.isCaptionTimestampVisible
+                                )
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(LocalSessionRecordName.string(startedAt: record.startedAt))
@@ -51,12 +55,14 @@ struct SessionHistoryView: View {
 private struct SavedSessionDetailView: View {
     let record: SavedLectureSession
     let fontSize: CGFloat
+    let showsTimestamps: Bool
 
     var body: some View {
         CaptionPreviewView(
             segments: record.segments,
             fontSize: fontSize,
-            sessionStartedAt: record.session.startedAt
+            sessionStartedAt: record.session.startedAt,
+            showsTimestamps: showsTimestamps
         )
             .navigationTitle(LocalSessionRecordName.string(startedAt: record.startedAt))
     }
