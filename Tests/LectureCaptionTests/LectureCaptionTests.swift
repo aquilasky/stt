@@ -396,7 +396,7 @@ import Testing
     #expect(try store.remove(id: session.id).isEmpty)
 }
 
-@Test func localSessionRecordNameUsesChineseWeekdayAndMinuteBefore24Hour() {
+@Test func localSessionRecordNameUsesEnglishAbbreviationsAnd24HourTime() {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(secondsFromGMT: 0)!
     let startedAt = calendar.date(from: DateComponents(
@@ -407,7 +407,12 @@ import Testing
         minute: 7
     ))!
 
-    #expect(LocalSessionRecordName.string(startedAt: startedAt, calendar: calendar) == "星期三-19-08-26-07-18")
+    #expect(
+        LocalSessionRecordName.string(
+            startedAt: startedAt,
+            timeZone: TimeZone(secondsFromGMT: 0)!
+        ) == "Wed_19_Aug_26_18:07"
+    )
 }
 
 @Test func localSessionHistoryStoreKeepsAnInvalidFileForManualInvestigation() throws {
