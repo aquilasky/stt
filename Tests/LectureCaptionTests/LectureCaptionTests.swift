@@ -396,6 +396,20 @@ import Testing
     #expect(try store.remove(id: session.id).isEmpty)
 }
 
+@Test func localSessionRecordNameUsesChineseWeekdayAndMinuteBefore24Hour() {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    let startedAt = calendar.date(from: DateComponents(
+        year: 2026,
+        month: 8,
+        day: 19,
+        hour: 18,
+        minute: 7
+    ))!
+
+    #expect(LocalSessionRecordName.string(startedAt: startedAt, calendar: calendar) == "星期三-19-08-26-07-18")
+}
+
 @Test func localSessionHistoryStoreKeepsAnInvalidFileForManualInvestigation() throws {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
