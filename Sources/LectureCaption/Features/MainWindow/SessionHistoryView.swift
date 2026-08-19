@@ -43,8 +43,12 @@ struct SessionHistoryView: View {
             }
             .navigationTitle("本地课堂记录")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("完成") { dismiss() }
+                ToolbarItem(placement: .navigation) {
+                    Button(action: dismiss.callAsFunction) {
+                        Image(systemName: "chevron.left")
+                    }
+                    .help("返回实时字幕")
+                    .accessibilityLabel("返回实时字幕")
                 }
             }
         }

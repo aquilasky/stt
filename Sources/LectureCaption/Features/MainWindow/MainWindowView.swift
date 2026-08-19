@@ -76,20 +76,21 @@ struct MainWindowView: View {
                 .help(appState.isCaptionTimestampVisible ? "隐藏时间戳" : "显示时间戳")
                 .accessibilityLabel("显示时间戳")
 
-                Menu {
-                    Button {
-                        showsConfiguration = true
-                    } label: {
-                        Label("课程与识别配置", systemImage: "slider.horizontal.3")
-                    }
-                    Button {
-                        showsHistory = true
-                    } label: {
-                        Label("本地课堂记录", systemImage: "clock.arrow.circlepath")
-                    }
+                Button {
+                    showsConfiguration = true
                 } label: {
-                    Label("更多", systemImage: "ellipsis.circle")
+                    Image(systemName: "slider.horizontal.3")
                 }
+                .help("课程与识别配置")
+                .accessibilityLabel("课程与识别配置")
+
+                Button {
+                    showsHistory = true
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                }
+                .help("本地课堂记录")
+                .accessibilityLabel("本地课堂记录")
 
                 Button(action: appState.decreaseCaptionFontSize) {
                     Label("减小字幕字号", systemImage: "textformat.size.smaller")
