@@ -48,6 +48,8 @@ final class AppState {
     @ObservationIgnored private var restartPreRollData: Data?
     @ObservationIgnored private var restartPreRollEndedAt: TimeInterval?
     @ObservationIgnored private var preRollEndedAt: TimeInterval?
+    @ObservationIgnored private var providerTaskAudioStartedAt: TimeInterval?
+    @ObservationIgnored private var sessionTimeline: SessionTimeline?
     @ObservationIgnored private var translationQueue: TranslationQueue?
     @ObservationIgnored private var translationEventsTask: Task<Void, Never>?
     @ObservationIgnored private var translatedSegmentIDs: Set<UUID> = []
@@ -162,6 +164,7 @@ final class AppState {
             ),
             provider: speechProvider
         )
+        sessionTimeline = SessionTimeline(audioSessionStartedAt: ProcessInfo.processInfo.systemUptime)
         captionSegments = []
         transcriptStabilizer = TranscriptStabilizer()
         translatedSegmentIDs = []
@@ -325,6 +328,7 @@ final class AppState {
         providerIsReady = false
         isFinishingProvider = false
         self.preRollEndedAt = preRollEndedAt
+        providerTaskAudioStartedAt = nil
         phase = .activatingProvider
         let configuration = SpeechConfiguration(
             provider: .aliyunRealtime,
@@ -356,12 +360,14 @@ final class AppState {
             phase = .recognizing
             if let preRollData, !preRollData.isEmpty {
                 discardBufferedAudio(through: preRollEndedAt)
+                let preRollStartedAt = (preRollEndedAt ?? 0) - pcm16Duration(preRollData)
+                beginProviderTimelineIfNeeded(audioStartedAt: preRollStartedAt)
                 pendingProviderAudio.insert(
                     PCM16Frame(
                         sequence: -1,
                         data: preRollData,
                         sampleRate: 16_000,
-                        startedAt: preRollEndedAt ?? 0
+                        startedAt: preRollStartedAt
                     ),
                     at: 0
                 )
@@ -369,9 +375,10 @@ final class AppState {
             providerIsReady = true
             drainProviderAudio()
         case .partial, .final:
-            applyTranscriptUpdate(transcriptStabilizer.apply(event))
+            guard let timelineEvent = mapToSessionTimeline(event) else { return }
+            applyTranscriptUpdate(transcriptStabilizer.apply(timelineEvent))
             await enqueueCommittedSegmentsForTranslation()
-            if case .final = event {
+            if case .final = timelineEvent {
                 saveCurrentSession()
             }
         case let .failed(code, message):
@@ -416,6 +423,7 @@ final class AppState {
         providerIsReady = false
         isFinishingProvider = false
         preRollEndedAt = nil
+        providerTaskAudioStartedAt = nil
         await provider.stop()
     }
 
@@ -440,9 +448,10 @@ final class AppState {
                   self.provider === provider,
                   self.providerIsReady,
                   !self.pendingProviderAudio.isEmpty {
-                let audio = self.pendingProviderAudio.removeFirst().data
+                let audio = self.pendingProviderAudio.removeFirst()
+                self.beginProviderTimelineIfNeeded(audioStartedAt: audio.startedAt)
                 do {
-                    try await provider.send(audio: audio)
+                    try await provider.send(audio: audio.data)
                 } catch {
                     await self.handleProviderError(error, from: provider)
                     break
@@ -466,6 +475,20 @@ final class AppState {
     private func clearPendingProviderAudio() {
         pendingProviderAudio.removeAll(keepingCapacity: false)
         isSendingProviderAudio = false
+    }
+
+    private func beginProviderTimelineIfNeeded(audioStartedAt: TimeInterval) {
+        guard providerTaskAudioStartedAt == nil else { return }
+        providerTaskAudioStartedAt = audioStartedAt
+        sessionTimeline?.beginProviderTask(audioStartedAt: audioStartedAt)
+    }
+
+    private func mapToSessionTimeline(_ event: TranscriptEvent) -> TranscriptEvent? {
+        sessionTimeline?.map(event)
+    }
+
+    private func pcm16Duration(_ data: Data, sampleRate: Double = 16_000) -> TimeInterval {
+        Double(data.count) / (sampleRate * 2)
     }
 
     private func discardBufferedAudio(through endTime: TimeInterval?) {

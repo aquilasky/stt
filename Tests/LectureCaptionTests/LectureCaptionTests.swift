@@ -682,14 +682,71 @@ import Testing
     var stabilizer = TranscriptStabilizer()
 
     _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The gradient", startedAt: 0))
-    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The gradient descent", startedAt: 0))
-    _ = stabilizer.apply(.final(providerSentenceID: "1", text: "The gradient descent converges.", startedAt: 0, endedAt: 2))
+    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The gradient descent", startedAt: 0.4))
+    _ = stabilizer.apply(.final(providerSentenceID: "1", text: "The gradient descent converges.", startedAt: 0.8, endedAt: 2))
     _ = stabilizer.apply(.final(providerSentenceID: "1", text: "The gradient descent converges.", startedAt: 0, endedAt: 2))
 
     #expect(stabilizer.segments.count == 1)
     #expect(stabilizer.segments[0].sourceText == "The gradient descent converges.")
     #expect(stabilizer.segments[0].state == .committed)
+    #expect(stabilizer.segments[0].startedAt == 0)
     #expect(stabilizer.segments[0].endedAt == 2)
+}
+
+@Test func sessionTimelineMapsProviderTimesFromTheActualPreRollStart() {
+    var timeline = SessionTimeline(audioSessionStartedAt: 100)
+    timeline.beginProviderTask(audioStartedAt: 100.2)
+
+    let partial = timeline.map(.partial(
+        providerSentenceID: "1",
+        text: "first",
+        startedAt: 0.17
+    ))
+    let final = timeline.map(.final(
+        providerSentenceID: "1",
+        text: "first.",
+        startedAt: 0.17,
+        endedAt: 1
+    ))
+
+    guard case let .partial(_, _, partialStartedAt)? = partial else {
+        Issue.record("Expected a partial transcript event.")
+        return
+    }
+    guard case let .final(_, _, finalStartedAt, finalEndedAt)? = final else {
+        Issue.record("Expected a final transcript event.")
+        return
+    }
+    #expect(abs(partialStartedAt - 0.37) < 0.000_001)
+    #expect(abs(finalStartedAt - 0.37) < 0.000_001)
+    #expect(abs(finalEndedAt - 1.2) < 0.000_001)
+}
+
+@Test func sessionTimelineDoesNotRegressWhenANewProviderTaskOverlapsPreRollAudio() {
+    var timeline = SessionTimeline(audioSessionStartedAt: 100)
+    timeline.beginProviderTask(audioStartedAt: 100)
+    _ = timeline.map(.final(
+        providerSentenceID: "1",
+        text: "first.",
+        startedAt: 4,
+        endedAt: 6
+    ))
+
+    timeline.beginProviderTask(audioStartedAt: 105.2)
+    let restartedPartial = timeline.map(.partial(
+        providerSentenceID: "1",
+        text: "second",
+        startedAt: 0.1
+    ))
+    let restartedFinal = timeline.map(.final(
+        providerSentenceID: "1",
+        text: "second.",
+        startedAt: 0.1,
+        endedAt: 1
+    ))
+
+    #expect(restartedPartial == .partial(providerSentenceID: "1", text: "second", startedAt: 6.1))
+    #expect(restartedFinal == .final(providerSentenceID: "1", text: "second.", startedAt: 6.1, endedAt: 7))
 }
 
 @Test func transcriptStabilizerHandlesInterleavedSentenceIDs() {

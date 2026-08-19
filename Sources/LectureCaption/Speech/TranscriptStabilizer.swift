@@ -27,7 +27,6 @@ struct TranscriptStabilizer: Sendable {
         guard let text = normalized(text) else { return }
         if let index = provisionalIndexes[id], segments.indices.contains(index) {
             segments[index].sourceText = text
-            segments[index].startedAt = startedAt
             return
         }
 
@@ -46,7 +45,6 @@ struct TranscriptStabilizer: Sendable {
         guard let text = normalized(text), !committedProviderIDs.contains(id) else { return }
         if let index = provisionalIndexes.removeValue(forKey: id), segments.indices.contains(index) {
             segments[index].sourceText = text
-            segments[index].startedAt = startedAt
             segments[index].endedAt = endedAt
             segments[index].state = .committed
         } else {
