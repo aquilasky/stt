@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Foundation
 import Testing
 @testable import LectureCaption
@@ -192,6 +193,23 @@ import Testing
 
     #expect(buffer.data.count == 3_200)
     #expect(buffer.data == Data((first.data + second.data).suffix(3_200)))
+}
+
+@Test func audioPipelineProvidesCurrentPreRollBeforeLocalActivityStarts() throws {
+    let pipeline = AudioPipeline(
+        activityConfiguration: LocalActivityConfiguration(
+            activationHold: 5,
+            preRoll: 0.8
+        )
+    )
+    let processedOutput = try pipeline.process(
+        buffer: pcmBuffer(sampleCount: 320, value: 12_000),
+        startedAt: 4
+    )
+    let output = try #require(processedOutput)
+
+    #expect(output.activityEvent == .none)
+    #expect(output.preRollData?.isEmpty == false)
 }
 
 @Test func localActivityDetectorUsesActivationAndReleaseHysteresis() {
@@ -693,6 +711,16 @@ import Testing
     #expect(stabilizer.segments[0].endedAt == 2)
 }
 
+@Test func transcriptStabilizerDoesNotPersistAFinalEndBeforeItsStableStart() {
+    var stabilizer = TranscriptStabilizer()
+
+    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "first", startedAt: 2))
+    _ = stabilizer.apply(.final(providerSentenceID: "1", text: "first.", startedAt: 1, endedAt: 1.5))
+
+    #expect(stabilizer.segments[0].startedAt == 2)
+    #expect(stabilizer.segments[0].endedAt == 2)
+}
+
 @Test func sessionTimelineMapsProviderTimesFromTheActualPreRollStart() {
     var timeline = SessionTimeline(audioSessionStartedAt: 100)
     timeline.beginProviderTask(audioStartedAt: 100.2)
@@ -841,6 +869,21 @@ import Testing
 private func pcm16Data(sampleCount: Int, value: Int16) -> Data {
     let samples = Array(repeating: value.littleEndian, count: sampleCount)
     return samples.withUnsafeBytes { Data($0) }
+}
+
+private func pcmBuffer(sampleCount: Int, value: Int16) -> AVAudioPCMBuffer {
+    let format = AVAudioFormat(
+        commonFormat: .pcmFormatInt16,
+        sampleRate: 16_000,
+        channels: 1,
+        interleaved: false
+    )!
+    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(sampleCount))!
+    buffer.frameLength = AVAudioFrameCount(sampleCount)
+    for index in 0..<sampleCount {
+        buffer.int16ChannelData![0][index] = value
+    }
+    return buffer
 }
 
 private actor FakeAliyunWebSocketTransport: AliyunWebSocketTransport {

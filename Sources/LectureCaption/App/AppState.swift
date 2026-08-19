@@ -383,6 +383,7 @@ final class AppState {
             }
         case let .failed(code, message):
             captureError = AliyunServerError(code: code, message: message).localizedDescription
+            discardPendingProviderRestart()
             await clearProvider(provider)
             phase = .monitoringLocal
         case .finished:
@@ -402,6 +403,7 @@ final class AppState {
     private func handleProviderError(_ error: Error, from provider: AliyunRealtimeSTTProvider) async {
         guard self.provider === provider else { return }
         captureError = error.localizedDescription
+        discardPendingProviderRestart()
         await clearProvider(provider)
         if phase != .completed && phase != .manuallyPaused {
             phase = .monitoringLocal
@@ -475,6 +477,12 @@ final class AppState {
     private func clearPendingProviderAudio() {
         pendingProviderAudio.removeAll(keepingCapacity: false)
         isSendingProviderAudio = false
+    }
+
+    private func discardPendingProviderRestart() {
+        restartProviderAfterFinish = false
+        restartPreRollData = nil
+        restartPreRollEndedAt = nil
     }
 
     private func beginProviderTimelineIfNeeded(audioStartedAt: TimeInterval) {

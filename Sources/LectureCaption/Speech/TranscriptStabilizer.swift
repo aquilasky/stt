@@ -45,14 +45,14 @@ struct TranscriptStabilizer: Sendable {
         guard let text = normalized(text), !committedProviderIDs.contains(id) else { return }
         if let index = provisionalIndexes.removeValue(forKey: id), segments.indices.contains(index) {
             segments[index].sourceText = text
-            segments[index].endedAt = endedAt
+            segments[index].endedAt = max(segments[index].startedAt, endedAt)
             segments[index].state = .committed
         } else {
             segments.append(CaptionSegment(
                 sequence: nextSequence,
                 sourceText: text,
                 startedAt: startedAt,
-                endedAt: endedAt,
+                endedAt: max(startedAt, endedAt),
                 state: .committed
             ))
             nextSequence += 1
