@@ -3,6 +3,7 @@ import SwiftUI
 struct CaptionPreviewView: View {
     let segments: [CaptionSegment]
     let fontSize: CGFloat
+    let sessionStartedAt: Date?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var focusAnimation: Animation? {
@@ -29,6 +30,7 @@ struct CaptionPreviewView: View {
                                     CaptionPreviewSegmentView(
                                         segment: segment,
                                         fontSize: fontSize,
+                                        sessionStartedAt: sessionStartedAt,
                                         focusLevel: CaptionFocusLevel.forSegment(
                                             at: index,
                                             focusedIndex: focusedIndex,
@@ -83,6 +85,7 @@ struct CaptionPreviewView: View {
 private struct CaptionPreviewSegmentView: View {
     let segment: CaptionSegment
     let fontSize: CGFloat
+    let sessionStartedAt: Date?
     let focusLevel: CaptionFocusLevel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -96,6 +99,11 @@ private struct CaptionPreviewSegmentView: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            if let sessionStartedAt {
+                Text(CaptionTimestampFormatter.string(sessionStartedAt: sessionStartedAt, offset: segment.startedAt))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+            }
             if segment.state == .provisional {
                 ProvisionalCaptionText(
                     sourceText: segment.sourceText,

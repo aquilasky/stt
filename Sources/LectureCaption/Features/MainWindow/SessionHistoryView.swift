@@ -20,11 +20,11 @@ struct SessionHistoryView: View {
                                 SavedSessionDetailView(record: record, fontSize: appState.captionFontSize)
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(record.session.context.courseName.isEmpty ? "未命名课堂" : record.session.context.courseName)
+                                    Text(LocalSessionRecordName.string(startedAt: record.startedAt))
                                         .font(.headline)
-                                    Text(record.session.context.topic.isEmpty ? "未填写主题" : record.session.context.topic)
+                                    Text(record.session.context.courseName.isEmpty ? "未填写课程名称" : record.session.context.courseName)
                                         .foregroundStyle(.secondary)
-                                    Text(record.startedAt, format: .dateTime.year().month().day().hour().minute())
+                                    Text(record.session.context.topic.isEmpty ? "未填写主题" : record.session.context.topic)
                                         .font(.caption)
                                         .foregroundStyle(.tertiary)
                                 }
@@ -53,7 +53,11 @@ private struct SavedSessionDetailView: View {
     let fontSize: CGFloat
 
     var body: some View {
-        CaptionPreviewView(segments: record.segments, fontSize: fontSize)
-            .navigationTitle(record.session.context.courseName.isEmpty ? "课堂记录" : record.session.context.courseName)
+        CaptionPreviewView(
+            segments: record.segments,
+            fontSize: fontSize,
+            sessionStartedAt: record.session.startedAt
+        )
+            .navigationTitle(LocalSessionRecordName.string(startedAt: record.startedAt))
     }
 }

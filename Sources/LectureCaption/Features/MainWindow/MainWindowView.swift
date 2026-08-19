@@ -13,7 +13,8 @@ struct MainWindowView: View {
 
             CaptionPreviewView(
                 segments: appState.captionSegments,
-                fontSize: appState.captionFontSize
+                fontSize: appState.captionFontSize,
+                sessionStartedAt: appState.activeSession?.startedAt
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

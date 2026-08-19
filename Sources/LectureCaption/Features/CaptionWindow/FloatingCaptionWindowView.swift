@@ -39,7 +39,8 @@ struct FloatingCaptionWindowView: View {
                             FloatingCaptionSegmentView(
                                 segment: segment,
                                 mode: appState.floatingCaptionDisplayMode,
-                                fontSize: appState.floatingCaptionFontSize
+                                fontSize: appState.floatingCaptionFontSize,
+                                sessionStartedAt: appState.activeSession?.startedAt
                             )
                         }
                     }
@@ -112,9 +113,15 @@ private struct FloatingCaptionSegmentView: View {
     let segment: CaptionSegment
     let mode: FloatingCaptionDisplayMode
     let fontSize: CGFloat
+    let sessionStartedAt: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
+            if let sessionStartedAt {
+                Text(CaptionTimestampFormatter.string(sessionStartedAt: sessionStartedAt, offset: segment.startedAt))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.58))
+            }
             if mode != .translationOnly {
                 Text(segment.sourceText)
                     .font(.system(size: fontSize, weight: .semibold))

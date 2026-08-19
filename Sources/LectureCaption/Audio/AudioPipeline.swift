@@ -47,7 +47,7 @@ final class AudioPipeline: @unchecked Sendable {
                 levelDBFS: measurement.levelDBFS,
                 isInputActive: measurement.isActive,
                 activityEvent: measurement.event,
-                preRollData: measurement.event == .started ? preRoll.data : nil,
+                preRollData: preRoll.data,
                 chunks: chunks,
                 endedAt: endedAt
             )

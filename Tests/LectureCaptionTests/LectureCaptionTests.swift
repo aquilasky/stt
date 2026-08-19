@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Foundation
 import Testing
 @testable import LectureCaption
@@ -194,6 +195,23 @@ import Testing
     #expect(buffer.data == Data((first.data + second.data).suffix(3_200)))
 }
 
+@Test func audioPipelineProvidesCurrentPreRollBeforeLocalActivityStarts() throws {
+    let pipeline = AudioPipeline(
+        activityConfiguration: LocalActivityConfiguration(
+            activationHold: 5,
+            preRoll: 0.8
+        )
+    )
+    let processedOutput = try pipeline.process(
+        buffer: pcmBuffer(sampleCount: 320, value: 12_000),
+        startedAt: 4
+    )
+    let output = try #require(processedOutput)
+
+    #expect(output.activityEvent == .none)
+    #expect(output.preRollData?.isEmpty == false)
+}
+
 @Test func localActivityDetectorUsesActivationAndReleaseHysteresis() {
     var detector = LocalActivityDetector(
         configuration: LocalActivityConfiguration(
@@ -376,6 +394,25 @@ import Testing
     #expect(replacement.count == 1)
     #expect(replacement[0].segments.count == 1)
     #expect(try store.remove(id: session.id).isEmpty)
+}
+
+@Test func localSessionRecordNameUsesEnglishAbbreviationsAnd24HourTime() {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    let startedAt = calendar.date(from: DateComponents(
+        year: 2026,
+        month: 8,
+        day: 19,
+        hour: 18,
+        minute: 7
+    ))!
+
+    #expect(
+        LocalSessionRecordName.string(
+            startedAt: startedAt,
+            timeZone: TimeZone(secondsFromGMT: 0)!
+        ) == "Wed_19_Aug_26_18:07"
+    )
 }
 
 @Test func localSessionHistoryStoreKeepsAnInvalidFileForManualInvestigation() throws {
@@ -682,14 +719,81 @@ import Testing
     var stabilizer = TranscriptStabilizer()
 
     _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The gradient", startedAt: 0))
-    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The gradient descent", startedAt: 0))
-    _ = stabilizer.apply(.final(providerSentenceID: "1", text: "The gradient descent converges.", startedAt: 0, endedAt: 2))
+    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "The gradient descent", startedAt: 0.4))
+    _ = stabilizer.apply(.final(providerSentenceID: "1", text: "The gradient descent converges.", startedAt: 0.8, endedAt: 2))
     _ = stabilizer.apply(.final(providerSentenceID: "1", text: "The gradient descent converges.", startedAt: 0, endedAt: 2))
 
     #expect(stabilizer.segments.count == 1)
     #expect(stabilizer.segments[0].sourceText == "The gradient descent converges.")
     #expect(stabilizer.segments[0].state == .committed)
+    #expect(stabilizer.segments[0].startedAt == 0)
     #expect(stabilizer.segments[0].endedAt == 2)
+}
+
+@Test func transcriptStabilizerDoesNotPersistAFinalEndBeforeItsStableStart() {
+    var stabilizer = TranscriptStabilizer()
+
+    _ = stabilizer.apply(.partial(providerSentenceID: "1", text: "first", startedAt: 2))
+    _ = stabilizer.apply(.final(providerSentenceID: "1", text: "first.", startedAt: 1, endedAt: 1.5))
+
+    #expect(stabilizer.segments[0].startedAt == 2)
+    #expect(stabilizer.segments[0].endedAt == 2)
+}
+
+@Test func sessionTimelineMapsProviderTimesFromTheActualPreRollStart() {
+    var timeline = SessionTimeline(audioSessionStartedAt: 100)
+    timeline.beginProviderTask(audioStartedAt: 100.2)
+
+    let partial = timeline.map(.partial(
+        providerSentenceID: "1",
+        text: "first",
+        startedAt: 0.17
+    ))
+    let final = timeline.map(.final(
+        providerSentenceID: "1",
+        text: "first.",
+        startedAt: 0.17,
+        endedAt: 1
+    ))
+
+    guard case let .partial(_, _, partialStartedAt)? = partial else {
+        Issue.record("Expected a partial transcript event.")
+        return
+    }
+    guard case let .final(_, _, finalStartedAt, finalEndedAt)? = final else {
+        Issue.record("Expected a final transcript event.")
+        return
+    }
+    #expect(abs(partialStartedAt - 0.37) < 0.000_001)
+    #expect(abs(finalStartedAt - 0.37) < 0.000_001)
+    #expect(abs(finalEndedAt - 1.2) < 0.000_001)
+}
+
+@Test func sessionTimelineDoesNotRegressWhenANewProviderTaskOverlapsPreRollAudio() {
+    var timeline = SessionTimeline(audioSessionStartedAt: 100)
+    timeline.beginProviderTask(audioStartedAt: 100)
+    _ = timeline.map(.final(
+        providerSentenceID: "1",
+        text: "first.",
+        startedAt: 4,
+        endedAt: 6
+    ))
+
+    timeline.beginProviderTask(audioStartedAt: 105.2)
+    let restartedPartial = timeline.map(.partial(
+        providerSentenceID: "1",
+        text: "second",
+        startedAt: 0.1
+    ))
+    let restartedFinal = timeline.map(.final(
+        providerSentenceID: "1",
+        text: "second.",
+        startedAt: 0.1,
+        endedAt: 1
+    ))
+
+    #expect(restartedPartial == .partial(providerSentenceID: "1", text: "second", startedAt: 6.1))
+    #expect(restartedFinal == .final(providerSentenceID: "1", text: "second.", startedAt: 6.1, endedAt: 7))
 }
 
 @Test func transcriptStabilizerHandlesInterleavedSentenceIDs() {
@@ -784,6 +888,21 @@ import Testing
 private func pcm16Data(sampleCount: Int, value: Int16) -> Data {
     let samples = Array(repeating: value.littleEndian, count: sampleCount)
     return samples.withUnsafeBytes { Data($0) }
+}
+
+private func pcmBuffer(sampleCount: Int, value: Int16) -> AVAudioPCMBuffer {
+    let format = AVAudioFormat(
+        commonFormat: .pcmFormatInt16,
+        sampleRate: 16_000,
+        channels: 1,
+        interleaved: false
+    )!
+    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(sampleCount))!
+    buffer.frameLength = AVAudioFrameCount(sampleCount)
+    for index in 0..<sampleCount {
+        buffer.int16ChannelData![0][index] = value
+    }
+    return buffer
 }
 
 private actor FakeAliyunWebSocketTransport: AliyunWebSocketTransport {
