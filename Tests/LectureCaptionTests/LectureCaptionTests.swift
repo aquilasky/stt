@@ -164,6 +164,14 @@ import Testing
     #expect(appState.floatingCaptionBackgroundOpacity == 0.95)
 }
 
+@Test @MainActor func captionTimestampVisibilityDefaultsToVisibleAndCanBeToggled() {
+    let appState = AppState()
+
+    #expect(appState.isCaptionTimestampVisible)
+    appState.isCaptionTimestampVisible = false
+    #expect(!appState.isCaptionTimestampVisible)
+}
+
 @Test func chunkerEmitsFixedDurationFramesAndFlushesRemainder() {
     var chunker = PCM16Chunker(sampleRate: 16_000, chunkDuration: 0.04)
     let input = PCM16Frame(

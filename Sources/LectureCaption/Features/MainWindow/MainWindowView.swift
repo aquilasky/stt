@@ -14,7 +14,8 @@ struct MainWindowView: View {
             CaptionPreviewView(
                 segments: appState.captionSegments,
                 fontSize: appState.captionFontSize,
-                sessionStartedAt: appState.activeSession?.startedAt
+                sessionStartedAt: appState.activeSession?.startedAt,
+                showsTimestamps: appState.isCaptionTimestampVisible
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -67,6 +68,13 @@ struct MainWindowView: View {
                     Label("悬浮字幕", systemImage: "rectangle.on.rectangle")
                 }
                 .help("显示或隐藏悬浮字幕")
+
+                Toggle(isOn: $appState.isCaptionTimestampVisible) {
+                    Image(systemName: "clock")
+                }
+                .toggleStyle(.button)
+                .help(appState.isCaptionTimestampVisible ? "隐藏时间戳" : "显示时间戳")
+                .accessibilityLabel("显示时间戳")
 
                 Menu {
                     Button {

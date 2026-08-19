@@ -28,6 +28,7 @@ final class AppState {
     var activeSession: LectureSession?
     var captionSegments: [CaptionSegment] = []
     var captionFontSize: CGFloat = 18
+    var isCaptionTimestampVisible = true
     var isFloatingCaptionVisible = false
     var floatingCaptionDisplayMode: FloatingCaptionDisplayMode = .bilingual
     var floatingCaptionFontSize: CGFloat = 20
