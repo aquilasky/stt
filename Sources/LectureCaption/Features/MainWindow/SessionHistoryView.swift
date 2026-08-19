@@ -56,14 +56,89 @@ private struct SavedSessionDetailView: View {
     let record: SavedLectureSession
     let fontSize: CGFloat
     let showsTimestamps: Bool
+    @State private var exportFormat: SavedSessionExportFormat = .text
+    @State private var includesTimestamps = true
+    @State private var exportDocument: SessionExportDocument?
+    @State private var isExporting = false
+    @State private var exportError: String?
 
     var body: some View {
-        CaptionPreviewView(
-            segments: record.segments,
-            fontSize: fontSize,
-            sessionStartedAt: record.session.startedAt,
-            showsTimestamps: showsTimestamps
-        )
+        VStack(spacing: 0) {
+            exportControls
+            Divider()
+            CaptionPreviewView(
+                segments: record.segments,
+                fontSize: fontSize,
+                sessionStartedAt: record.session.startedAt,
+                showsTimestamps: showsTimestamps
+            )
+        }
             .navigationTitle(LocalSessionRecordName.string(startedAt: record.startedAt))
+            .fileExporter(
+                isPresented: $isExporting,
+                document: exportDocument,
+                contentType: exportFormat.contentType,
+                defaultFilename: SavedSessionExporter.defaultFilename(for: record)
+            ) { result in
+                if case let .failure(error) = result {
+                    exportError = "无法导出课堂记录。\n\(error.localizedDescription)"
+                }
+            }
+            .alert(
+                "导出失败",
+                isPresented: Binding(
+                    get: { exportError != nil },
+                    set: { if !$0 { exportError = nil } }
+                )
+            ) {
+                Button("好", role: .cancel) {
+                    exportError = nil
+                }
+            } message: {
+                Text(exportError ?? "")
+            }
+    }
+
+    private var exportControls: some View {
+        HStack(spacing: 12) {
+            Picker("导出格式", selection: $exportFormat) {
+                ForEach(SavedSessionExportFormat.allCases) { format in
+                    Text(format.title).tag(format)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 120)
+
+            Toggle(isOn: $includesTimestamps) {
+                Image(systemName: "clock")
+            }
+            .toggleStyle(.button)
+            .help(includesTimestamps ? "导出时包含时间戳" : "导出时不包含时间戳")
+            .accessibilityLabel("导出时包含时间戳")
+
+            Button(action: prepareExport) {
+                Image(systemName: "square.and.arrow.up")
+            }
+            .help("导出\(exportFormat.title) 记录")
+            .accessibilityLabel("导出课堂记录")
+
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(.bar)
+    }
+
+    private func prepareExport() {
+        do {
+            exportDocument = try SavedSessionExporter.document(
+                for: record,
+                format: exportFormat,
+                includesTimestamps: includesTimestamps
+            )
+            isExporting = true
+        } catch {
+            exportError = "无法准备导出内容。\n\(error.localizedDescription)"
+        }
     }
 }

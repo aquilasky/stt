@@ -423,6 +423,59 @@ import Testing
     )
 }
 
+@Test func savedSessionTextExportKeepsCaptionOrderAndOptionallyIncludesTimestamps() throws {
+    let record = makeExportRecord()
+
+    let withTimestamps = SavedSessionExporter.text(for: record, includesTimestamps: true)
+    let withoutTimestamps = SavedSessionExporter.text(for: record, includesTimestamps: false)
+    let timestamp = CaptionTimestampFormatter.string(sessionStartedAt: record.startedAt, offset: 2)
+
+    #expect(withTimestamps.contains("课程：Machine Learning"))
+    #expect(withTimestamps.contains("[\(timestamp)] Gradient descent converges."))
+    #expect(withTimestamps.contains("[\(timestamp)] 梯度下降会收敛。"))
+    let firstCaption = try #require(withTimestamps.firstRange(of: "Gradient descent"))
+    let secondCaption = try #require(withTimestamps.firstRange(of: "A \"quote\""))
+    #expect(firstCaption.lowerBound < secondCaption.lowerBound)
+    #expect(!withoutTimestamps.contains("[\(timestamp)]"))
+    #expect(withoutTimestamps.contains("A \"quote\"\n中文"))
+}
+
+@Test func savedSessionJSONExportUsesPublicFieldsAndOmitsTimesWhenDisabled() throws {
+    let record = makeExportRecord()
+    let withTimestamps = try SavedSessionExporter.document(
+        for: record,
+        format: .json,
+        includesTimestamps: true
+    )
+    let withoutTimestamps = try SavedSessionExporter.document(
+        for: record,
+        format: .json,
+        includesTimestamps: false
+    )
+
+    let timedRoot = try #require(JSONSerialization.jsonObject(with: withTimestamps.data) as? [String: Any])
+    let untimedRoot = try #require(JSONSerialization.jsonObject(with: withoutTimestamps.data) as? [String: Any])
+    let timedSegments = try #require(timedRoot["segments"] as? [[String: Any]])
+    let untimedSegments = try #require(untimedRoot["segments"] as? [[String: Any]])
+
+    #expect(timedRoot["formatVersion"] as? Int == 1)
+    #expect(timedRoot["sessionStartedAt"] != nil)
+    #expect(timedSegments.map { $0["sequence"] as? Int } == [0, 1])
+    #expect(timedSegments[0]["startedAtMilliseconds"] as? Int == 2_000)
+    #expect(timedSegments[1]["sourceText"] as? String == "A \"quote\"\n中文")
+    #expect(untimedRoot["sessionStartedAt"] == nil)
+    #expect(untimedRoot["sessionEndedAt"] == nil)
+    #expect(untimedSegments.allSatisfy { $0["startedAtMilliseconds"] == nil && $0["endedAtMilliseconds"] == nil })
+}
+
+@Test func savedSessionExportUsesSafeDefaultFilenameAndExpectedContentTypes() {
+    let record = makeExportRecord(courseName: "Machine/Learning")
+
+    #expect(SavedSessionExporter.defaultFilename(for: record).contains("Machine-Learning"))
+    #expect(SavedSessionExportFormat.text.contentType == .plainText)
+    #expect(SavedSessionExportFormat.json.contentType == .json)
+}
+
 @Test func localSessionHistoryStoreKeepsAnInvalidFileForManualInvestigation() throws {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -891,6 +944,34 @@ import Testing
     let event = try await iterator.next()
     #expect(event == .failed(code: "CLIENT_ERROR", message: "timeout"))
     await provider.stop()
+}
+
+private func makeExportRecord(courseName: String = "Machine Learning") -> SavedLectureSession {
+    let session = LectureSession(
+        context: LectureContext(
+            courseName: courseName,
+            topic: "Optimization",
+            sourceLanguage: .english,
+            targetLanguage: .simplifiedChinese,
+            glossary: []
+        ),
+        provider: .aliyunRealtime
+    )
+    let first = CaptionSegment(
+        sequence: 0,
+        sourceText: "Gradient descent converges.",
+        translatedText: "梯度下降会收敛。",
+        startedAt: 2,
+        endedAt: 4,
+        state: .completed
+    )
+    let second = CaptionSegment(
+        sequence: 1,
+        sourceText: "A \"quote\"\n中文",
+        startedAt: 6,
+        state: .translationFailed
+    )
+    return SavedLectureSession(session: session, segments: [second, first])
 }
 
 private func pcm16Data(sampleCount: Int, value: Int16) -> Data {
