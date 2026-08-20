@@ -3,7 +3,7 @@
 > 文档状态：Planned
 > 最后更新：2026-08-21
 > 基线版本：1.1.0
-> 目标版本：1.1.1 ～ 1.1.5
+> 目标版本：1.1.1 ～ 1.1.8
 > 目标平台：macOS 14+ / Apple Silicon
 
 ## 1. 目标与版本顺序
@@ -12,28 +12,131 @@
 
 | 版本 | Feature | 用户结果 |
 |---|---|---|
-| `1.1.1` | 悬浮字幕最新内容下边界追踪 | 新原文始终完整进入浮窗可视区域 |
-| `1.1.2` | 主界面智能跟随 | 用户查看历史字幕时不再被新内容强制拉回 |
-| `1.1.3` | 合并开始与继续入口 | 初次开始和暂停后继续使用同一个主按钮 |
-| `1.1.4` | 分离课程配置与 API 配置 | 课程上下文和供应商凭据各自拥有独立入口 |
-| `1.1.5` | API 用量与估算费用 | 本地按时间查看语音时长、翻译 Token 和费用估算 |
+| `1.1.1` | 阿里云端点信任边界 | 非法 Workspace ID 无法改变连接主机或接触 API Key |
+| `1.1.2` | 本地敏感文件提交防护 | 运行数据、凭据和私钥材料不易被误提交 |
+| `1.1.3` | Release 插桩与路径清理 | 发布产物不包含 coverage runtime 或开发机绝对路径 |
+| `1.1.4` | 悬浮字幕最新内容下边界追踪 | 新原文始终完整进入浮窗可视区域 |
+| `1.1.5` | 主界面智能跟随 | 用户查看历史字幕时不再被新内容强制拉回 |
+| `1.1.6` | 合并开始与继续入口 | 初次开始和暂停后继续使用同一个主按钮 |
+| `1.1.7` | 分离课程配置与 API 配置 | 课程上下文和供应商凭据各自拥有独立入口 |
+| `1.1.8` | API 用量与估算费用 | 本地按时间查看语音时长、翻译 Token 和费用估算 |
 
-悬浮字幕追踪从 1.2.0 移入本计划。`1.2.0` 只保留不改变原文链路的低延迟实时翻译，并且必须等 `1.1.5` 完成后才能开始。
+前三个补丁版本处理已经确认的安全和发布隐私问题，优先于交互改进。悬浮字幕追踪仍保留在本计划，`1.2.0` 只包含不改变原文链路的低延迟实时翻译，并且必须等 `1.1.8` 完成后才能开始。
 
 本计划不包含低延迟 partial 翻译、自动暂停算法修复、系统音频采集、MiMo ASR、历史记录格式迁移、云同步、离线模型或 App Store 发布。自动暂停误判仍由 [Issue #53](https://github.com/aquilasky/stt/issues/53) 独立跟踪。
 
 ## 2. 共同约束
 
-- 严格按 Feature 1 到 Feature 5 顺序开发。前一项未完成子代理审查、本地自动化测试、主代理手动测试和用户必测确认前，不得开始下一项。
+- 严格按 Feature 1 到 Feature 8 顺序开发。前一项未完成子代理审查、本地自动化测试、主代理手动测试和用户必测确认前，不得开始下一项。
 - 原文识别链路优先。滚动、配置、用量统计和费用计算不得阻塞或改变音频采集、STT 事件处理、`TranscriptStabilizer` 或既有 partial/final 行为。
+- 任何由用户输入影响的网络端点必须先完成允许列表校验，再读取或附加 API Key；不能把 URL 解析成功视为端点可信。
 - 所有滚动实现必须支持 macOS 14，不使用仅 macOS 15+ 可用的 `onScrollPhaseChange` 或 `onScrollGeometryChange`。
-- 不使用 GitHub Actions、托管 CI/CD、Codespaces 或其他可能产生费用的托管服务。测试和构建全部在本机执行。
+- 不使用 GitHub Actions、托管 CI/CD、Codespaces 或其他可能产生费用的托管服务。测试、密钥扫描、构建和发布产物检查全部在本机执行。
 - Debug 与 Release 继续使用独立 Bundle ID、配置目录、API Key、课堂记录和用量记录。
 - 不修改 `Sessions.json` 格式，不把用量或费用字段写入课堂记录、字幕导出或 API Key 配置文件。
 - 新增的用量数据只保存在本机；无效数据必须保留原文件并明确报错，不自动修复、迁移、重命名或替换。
 - 每个 feature 使用独立 Issue、分支和 PR，默认 Squash Merge。每个补丁版本完成后再按发布规范生成 APP、ZIP 和 DMG。
 
-## 3. Feature 1：悬浮字幕最新内容下边界追踪（1.1.1）
+## 3. Feature 1：阿里云端点信任边界（1.1.1）
+
+关联：[Issue #60](https://github.com/aquilasky/stt/issues/60)
+
+目标：恶意 Workspace ID 必须在读取 API Key 或建立连接之前被拒绝，最终 WebSocket 请求只能发送到用户所选地域的阿里云固定端点。
+
+已确认风险：当前实现将 Workspace ID 直接插入 URL，再为解析出的 URL 附加 `Authorization: Bearer`。输入 `attacker.example/x`、userinfo 或编码分隔符可能改变 URL 的实际主机，使 API Key、术语和后续麦克风音频离开阿里云信任边界。
+
+输入与端点合同：
+
+- 阿里云公开文档只说明 Workspace ID 是 Base URL 的一个主机标签，没有公开更窄的字符规范。本 feature 按单个 ASCII DNS label 校验：长度 `1...63`，仅允许 ASCII 英文字母、数字和连字符，首尾必须是字母或数字，不允许点、斜杠、冒号、`@`、百分号、Unicode、控制字符或内部空白。
+- 保留当前配置入口对首尾普通空白的显式清理；清理后的值必须完整满足上述合同。不得使用会接受部分匹配的正则表达式。
+- 使用 `URLComponents` 或等价结构化 API 构造端点，不再把未经验证的文本直接插入 URL 字符串。
+- URL 生成后再次验证：`scheme == wss`；`user`、`password`、`port`、`query` 和 `fragment` 均为空；path 精确为 `/api-ws/v1/inference`；host 经 ASCII 小写规范化后精确等于“已校验 Workspace ID + 当前 `Region.hostSuffix`”的同样规范化结果。地域后缀只能来自现有北京/新加坡 enum 允许列表。
+- `X-DashScope-WorkSpace` 请求头只能使用同一个已校验值，避免 URL 与 Header 使用不同的输入。
+- Provider 的启动顺序改为“校验并生成可信端点 -> 读取 API Key -> 构造请求 -> connect”。无效端点不得调用 API Key loader 或 transport。
+- UI 显示明确的 Workspace ID 格式错误；错误、日志和测试输出不得包含 API Key。
+
+非目标：不增加证书固定、服务端代理、新地域、Provider 回退、自动修复 Workspace ID 或新的重试逻辑。
+
+验收：
+
+- 合法边界值能生成北京或新加坡的唯一预期 URL，并继续完成现有连接流程。
+- `attacker.example/x`、`user@host`、`workspace%2Fpath`、Unicode 句点/斜杠、换行、内部空白、前后连字符和超过 63 字符的输入均在本地失败。
+- 每个非法输入都满足 API Key loader 调用次数为 0、transport connect 调用次数为 0、音频发送次数为 0。
+- 最终请求的 scheme、host、path、userinfo、port、query 和 fragment 全部与端点合同一致。
+- 一次有效真实 Workspace 的短会话仍能识别原文，鉴权失败提示仍经过脱敏。
+
+自动化测试重点：Workspace ID 边界与攻击样例、URL 组成字段、Provider 调用顺序、Header 值，以及无效输入不接触凭据或网络。
+
+用户必测重点：配置一个有效 Workspace 完成短会话；分别输入带点、斜杠、`@` 和内部空格的值，确认应用立即报格式错误且不会进入连接状态。
+
+预计：0.5～1 个开发日。
+
+## 4. Feature 2：本地敏感文件提交防护（1.1.2）
+
+关联：[Issue #61](https://github.com/aquilasky/stt/issues/61)
+
+目标：在不使用托管 CI 的前提下，降低本机配置、课堂记录、发布目录和私钥材料被误提交或进入正式发布的风险。
+
+实现方案：
+
+- 在 `.gitignore` 中明确覆盖 `Release/`、`Sessions.json`、`APIUsage.json`、`LocalCredentials.json`、`*.pem`、`*.key`、`*.pfx`，并保留现有 `.env`、`*.p8`、`*.p12`、音频和构建目录规则。
+- 新增版本固定的 Gitleaks 配置与本地脚本，提供 staged、worktree 和 history 三种明确模式；扫描命令不得上传仓库内容，也不得在缺少工具时静默跳过。
+- staged 扫描用于提交前快速检查；worktree 与 history 扫描是安全相关 PR 和每次 Release 的强制本地门禁。完整扫描结果记录在 PR 或发布说明中。
+- 可提供仓库内的 pre-commit hook，但只能由用户显式安装；脚本不得自动修改全局 Git 配置或从网络下载可执行文件。
+- allowlist 只接受路径和内容都明确的合成测试 fixture，不允许用宽泛正则忽略真实 DashScope、DeepSeek、PEM 或证书格式。
+- 扫描发现问题时返回非零状态并打印可定位证据；不得自动删除文件、轮换密钥、修改提交或重写 Git 历史。
+
+非目标：不恢复 GitHub Actions，不使用付费扫描服务，不自动安装 Homebrew 软件，不在本 feature 处理已经泄露凭据的轮换或历史改写。
+
+验收：
+
+- `git check-ignore` 能确认默认运行数据、Release 目录和列出的签名材料被忽略，正常源码与测试 fixture 不被误忽略。
+- 合成 API Key 或私钥出现在 staged 内容、未提交工作区或历史 fixture 时，本地扫描对应模式均明确失败。
+- 明确 allowlist 的合成 fixture 通过，真实格式放到非允许路径后仍会失败。
+- 本机未安装 Gitleaks 时脚本给出版本和安装说明并失败，不把“未扫描”报告为通过。
+- 安全扫描全过程不调用 GitHub Actions、Marketplace App 或其他托管服务。
+
+自动化测试重点：ignore 规则、脚本参数和退出码、三种扫描范围、窄 allowlist，以及缺少/版本不匹配的工具行为。
+
+用户必测重点：按文档安装或确认本地 Gitleaks，创建不含真实凭据的合成敏感文件，验证提交前阻断和删除 fixture 后恢复通过。
+
+预计：0.5～1 个开发日。
+
+## 5. Feature 3：Release 插桩与开发机路径清理（1.1.3）
+
+关联：[Issue #62](https://github.com/aquilasky/stt/issues/62)
+
+目标：未来发布的 APP、ZIP 和 DMG 不包含 LLVM coverage/profile runtime、`.profraw` 标记或开发机绝对源码路径，且发现回归时打包必须失败。
+
+已确认风险：现有本地 Release 可执行文件包含 `__llvm_profile` runtime 和 `default.profraw` 字符串；历史 `v1.0.0`/`v1.0.1` 产物还被报告包含 `/Users/<用户名>/.../Sources/...` 绝对路径。旧标签和旧 Release 保持不变，只在后续版本发布说明中记录限制。
+
+实现方案：
+
+- 在项目级和 App target 的 Release build settings 中显式设置 `CLANG_ENABLE_CODE_COVERAGE = NO`、`GCC_GENERATE_TEST_COVERAGE_FILES = NO` 和 `GCC_INSTRUMENT_PROGRAM_FLOW_ARCS = NO`，并关闭 Swift profile generation，不依赖 Xcode 默认值。
+- `Scripts/create-release.sh` 的 `xcodebuild` 命令再次显式传入对应 Release 禁用设置，避免本机 scheme 或环境状态重新启用插桩。
+- 每次打包在当前 staging 目录下使用全新的临时 DerivedData，不再复用固定的 `.build/release-package`；脚本退出时只清理本次明确创建的临时目录。
+- 如关闭插桩后仍存在绝对源码路径，只对 Release 添加 Swift `-file-prefix-map`/`-debug-prefix-map`，将仓库根路径映射为稳定的非个人路径；不改变 Debug 的诊断信息。
+- 新增只读的发布产物检查：拒绝 `__llvm_profile`、`default.profraw`、其他 `.profraw`、`/Users/`、当前仓库绝对路径以及绝对 `Sources/LectureCaption` 路径。
+- 先检查签名前的 App，再分别从最终 APP、ZIP 和 DMG 解析出可执行文件复检。任一资产检查失败时不得打印“打包完成”或进入 GitHub Release。
+- 保留现有 ad-hoc/Developer ID 签名选择、`codesign --verify --deep --strict`、标准资产命名和 Debug/Release 数据隔离。
+
+非目标：不重写历史发布、不引入 Apple notarization、远端构建、符号服务器、混淆器或新的签名服务。
+
+验收：
+
+- Release 编译命令不再包含 `-profile-generate`、`-profile-coverage-mapping` 或等价 profile 插桩参数。
+- APP、ZIP 和 DMG 内的 arm64 主可执行文件均不含禁止的 runtime、`.profraw` 或开发机绝对路径字符串。
+- 人为注入一条禁止字符串的合成 fixture 时，发布检查以非零状态失败并指出资产与匹配类别。
+- Debug 测试仍可按需收集覆盖率，Release App 可启动并完成一次本地监听/短识别，签名与三种资产结构验证通过。
+- 发布说明明确记录本次修复和旧产物限制，不移动标签、不替换历史 Release 资产。
+
+自动化测试重点：Release build settings、禁止字符串扫描、APP/ZIP/DMG 解包路径、失败退出码和无误报的干净 fixture。
+
+用户必测重点：安装新 DMG，启动独立 Release App，确认麦克风、API 配置和课堂记录正常且没有生成 `default.profraw`。
+
+预计：1 个开发日。
+
+## 6. Feature 4：悬浮字幕最新内容下边界追踪（1.1.4）
 
 目标：悬浮字幕新增或增长的原文不得超出字幕框下边界。跟随目标是最新可见内容的底部，不再把最近一条已完成字幕简单居中。
 
@@ -62,7 +165,7 @@
 
 预计：1～2 个开发日。
 
-## 4. Feature 2：主界面智能跟随（1.1.2）
+## 7. Feature 5：主界面智能跟随（1.1.5）
 
 目标：保留歌词式的当前确认行强调和识别中内容布局，但取消用户浏览历史字幕时的强制跟随。
 
@@ -101,7 +204,7 @@ following
 
 预计：1～2 个开发日。
 
-## 5. Feature 3：合并开始与继续入口（1.1.3）
+## 8. Feature 6：合并开始与继续入口（1.1.6）
 
 目标：初次开始会话和手动暂停后的继续使用同一个动态主按钮，去掉当前长期并列的“开始”和“继续”按钮。
 
@@ -132,7 +235,7 @@ following
 
 预计：0.5～1 个开发日。
 
-## 6. Feature 4：分离课程配置与 API 配置（1.1.4）
+## 9. Feature 7：分离课程配置与 API 配置（1.1.7）
 
 目标：将课堂语境与供应商连接信息拆成两个同级入口，缩短常用配置路径并明确职责。
 
@@ -149,7 +252,7 @@ following
 - 将现有 `ConfigurationView` 拆成两个范围明确的 SwiftUI View；复用现有 `AppState` 字段和凭据保存流程。
 - 两个 Sheet 使用一致的左上角返回/关闭位置、尺寸约束和表单样式。
 - 移动字段不得重置正在编辑的值、术语表、Provider、地域或已保存凭据。
-- 本 feature 不显示空白的用量面板；Feature 5 完成后再在 API 配置中加入真实统计内容。
+- 本 feature 不显示空白的用量面板；Feature 8 完成后再在 API 配置中加入真实统计内容。
 
 非目标：不实施 Issue #36 的整体主窗口重设计，不增加侧边栏，不改变 API Key 存储格式或会话启动合同。
 
@@ -165,7 +268,7 @@ following
 
 预计：1 个开发日。
 
-## 7. Feature 5：API 用量与估算费用（1.1.5）
+## 10. Feature 8：API 用量与估算费用（1.1.8）
 
 目标：在 API 配置界面本地统计实际发生的供应商用量，按时间范围分别展示语音识别和翻译消耗。
 
@@ -251,7 +354,7 @@ DeepSeek 高峰时段按官方定义为 `01:00–04:00 UTC` 和 `06:00–10:00 U
 
 预计：2～3 个开发日。
 
-## 8. 测试与发布门禁
+## 11. 测试与发布门禁
 
 每个 feature 至少执行：
 
@@ -275,10 +378,10 @@ xcodebuild -project LectureCaption.xcodeproj \
 - 用户确认当前 feature 的全部必测项后，PR 才能 Ready / Squash Merge，并发布对应补丁版本。
 - 不运行或等待任何 GitHub Actions、远端 CI 或付费托管测试。
 
-## 9. 总工期与后续版本
+## 12. 总工期与后续版本
 
-预计总工期：6～9 个开发日，不含用户手工测试、真实 API 对账和外部服务故障时间。
+预计总工期：8～12 个开发日，不含用户手工测试、真实 API 对账和外部服务故障时间。
 
-完成 `1.1.5` 后，按照 [LectureCaption 1.2.0 开发计划](DEVELOPMENT_PLAN_1.2.md) 开发低延迟实时翻译。`1.2.0` 的所有 partial 翻译请求也必须接入 `1.1.5` 的用量记录合同，但不得反向改变原文链路。
+完成 `1.1.8` 后，按照 [LectureCaption 1.2.0 开发计划](DEVELOPMENT_PLAN_1.2.md) 开发低延迟实时翻译。`1.2.0` 的所有 partial 翻译请求也必须接入 `1.1.8` 的用量记录合同，但不得反向改变原文链路。
 
-MiMo ASR、系统音频采集和自动暂停算法修复继续作为独立后续工作，不得混入上述五个 feature。
+MiMo ASR、系统音频采集和自动暂停算法修复继续作为独立后续工作，不得混入上述八个 feature。

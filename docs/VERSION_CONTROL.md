@@ -12,6 +12,7 @@
 - 一个 PR 只解决一个明确问题，避免混入无关重构和格式化。
 - 分支存活时间建议不超过 3 个工作日；大功能拆成可独立合并的小步。
 - 密钥、音频样本、个人配置、DerivedData 和签名材料不得提交。
+- 端点、凭据和发布安全检查必须在本机执行；从 `1.1.2` 起，安全相关 PR 和 Release 还必须记录 staged/worktree/history 密钥扫描结果。
 - MVP 阶段采用 Squash Merge，使 `main` 上每个 PR 对应一个可读提交。
 - 不使用 GitHub Actions、GitHub-hosted runner、Codespaces、付费 Marketplace App 或其他可能计费的托管构建、测试、部署、监控和分析服务。质量门禁只在本机执行并记录结果；计费状态不明确的能力必须先获得用户当次明确授权。
 
@@ -76,7 +77,7 @@ gh pr create --fill --base main
 一个 feature 只有在以下门禁全部通过后，才能标记为完成、合并 PR 或开始下一个 feature。未通过任何一项时，应继续在当前分支修复并重复完整验证；不得以口头判断、部分通过或已创建 PR 代替验收。
 
 1. **子代理代码审查**：功能实现完成后，由独立子代理进行代码审查。审查以缺陷、回归风险、并发与资源生命周期、隐私与密钥泄露、错误处理及测试缺口为重点。所有阻断问题必须修复；非阻断建议应在 PR 中明确采纳或说明不采纳的理由。
-2. **自动化测试**：运行与变更范围匹配的单元测试、集成测试、构建检查和静态检查。至少执行 `git diff --check`、`swift test` 和 arm64 macOS Debug 构建；涉及网络、持久化、导出或 UI 时，增加相应测试。测试结果必须记录在 PR 描述中。
+2. **自动化测试**：运行与变更范围匹配的单元测试、集成测试、构建检查和静态检查。至少执行 `git diff --check`、`swift test` 和 arm64 macOS Debug 构建；涉及网络、持久化、导出或 UI 时，增加相应测试。安全或凭据变更还必须按权威开发计划执行完全本地的密钥扫描；Release 构建变更必须检查最终二进制。测试结果必须记录在 PR 描述中。
 3. **主代理手动测试**：由负责开发的主代理依据该 feature 的验收标准，在实际应用中完成手动验证并记录场景和结果。涉及权限、麦克风、悬浮窗、网络恢复或长时间运行的功能，不能仅以单元测试替代真实运行验证。
 
 执行顺序固定为：**实现完成 -> 子代理审查 -> 修复审查问题 -> 自动化测试 -> 主代理手动测试 -> 记录结果 -> 完成 feature**。自动化测试或手动测试发现问题后，回到实现阶段；修复影响核心逻辑时，必须再次进行子代理审查。
@@ -146,6 +147,7 @@ PR 合并前必须满足：
 - `git diff --check` 无错误。
 - 新行为有测试，或在 PR 中说明无法自动化的原因与手工验证结果。
 - 不包含 API Key、Workspace 私密配置、签名文件或原始课堂音频。
+- 安全相关 PR 已通过计划要求的本地 staged、worktree 和 history 扫描；不得以 GitHub Actions 或托管扫描结果代替。
 - 用户可见行为、协议或架构变化已同步开发文档。
 - PR 中的阻断评论已解决。
 - 已完成第 3.4 节的子代理审查、自动化测试和主代理手动测试，并在 PR 中记录结论。
@@ -192,12 +194,13 @@ git pull --ff-only origin main
 | `0.6.0` | Markdown / JSON 导出 |
 | `1.0.0` | 2 小时稳定性与完整 MVP 验收通过 |
 | `1.1.0` | 时间戳与 TXT/JSON 导出、全屏和防息屏 |
-| `1.1.1` ～ `1.1.5` | 浮窗与主界面跟随、会话按钮、配置分离和 API 用量 |
+| `1.1.1` ～ `1.1.3` | 阿里云端点、敏感文件提交防护和 Release 隐私修复 |
+| `1.1.4` ～ `1.1.8` | 浮窗与主界面跟随、会话按钮、配置分离和 API 用量 |
 | `1.2.0` | 不改变原文链路的低延迟实时翻译 |
 
 MiMo 分块 ASR 不属于当前 MVP；在 `1.0.0` 之后重新评估接口稳定性、成本和分块体验，并作为独立版本功能交付。
 
-`1.1.0` 的已完成基线详见 [LectureCaption 1.1.0 开发计划](DEVELOPMENT_PLAN_1.1.md)。当前必须按照 [LectureCaption 1.1.x 开发计划](DEVELOPMENT_PLAN_1.1_X.md) 完成 `1.1.1` 到 `1.1.5`；随后才能开始 [LectureCaption 1.2.0 开发计划](DEVELOPMENT_PLAN_1.2.md)。
+`1.1.0` 的已完成基线详见 [LectureCaption 1.1.0 开发计划](DEVELOPMENT_PLAN_1.1.md)。当前必须按照 [LectureCaption 1.1.x 开发计划](DEVELOPMENT_PLAN_1.1_X.md) 完成 `1.1.1` 到 `1.1.8`；随后才能开始 [LectureCaption 1.2.0 开发计划](DEVELOPMENT_PLAN_1.2.md)。
 
 > 发布例外：`1.0.0` 作为个人使用版本发布时，发布者接受 2 小时稳定性和睡眠/唤醒恢复尚未完成完整手工验收的风险。当前已完成 60 分钟连续运行测试。未完成项必须在发布说明中明确列为已知限制，并在后续补丁版本前补充验证或修复。
 
@@ -205,10 +208,12 @@ MiMo 分块 ASR 不属于当前 MVP；在 `1.0.0` 之后重新评估接口稳定
 
 1. 从 `main` 创建 `chore/<issue>-release-x.y.z`。
 2. 更新版本号、开发文档和变更记录。
-3. 通过 PR 合并到 `main`。
-4. 在合并提交上创建带注释标签 `vX.Y.Z`。
-5. 使用 GitHub Release 发布变更说明、已知问题和已验证的安装资产。
-6. 使用 `Scripts/create-release.sh` 打包。最终用户资产固定命名为 `LectureCaption.app`、`LectureCaption.zip` 和 `LectureCaption.dmg`，不在文件名中附加版本号或架构；版本以应用内 `CFBundleShortVersionString` 和 GitHub Release 标签 `vX.Y.Z` 为准。ZIP 用于直接解压，DMG 必须包含应用及指向 `/Applications` 的快捷方式，供拖拽安装。发布说明应分别列出两种资产的 SHA-256 校验和。
+3. 从 `1.1.2` 起，在本机完成权威计划要求的 worktree 与 history 密钥扫描并记录结果。
+4. 通过 PR 合并到 `main`。
+5. 在合并提交上创建带注释标签 `vX.Y.Z`。
+6. 使用 `Scripts/create-release.sh` 打包。最终用户资产固定命名为 `LectureCaption.app`、`LectureCaption.zip` 和 `LectureCaption.dmg`，不在文件名中附加版本号或架构；版本以应用内 `CFBundleShortVersionString` 和 GitHub Release 标签 `vX.Y.Z` 为准。ZIP 用于直接解压，DMG 必须包含应用及指向 `/Applications` 的快捷方式，供拖拽安装。
+7. 从 `1.1.3` 起，确认 APP、ZIP 和 DMG 内的最终可执行文件均通过 coverage/profile 与开发机绝对路径检查。
+8. 使用 GitHub Release 发布变更说明、已知问题、三种已验证安装资产，以及 ZIP/DMG 的 SHA-256 校验和。
 
 禁止移动或覆盖已经推送的版本标签。
 
