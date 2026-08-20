@@ -184,6 +184,190 @@ import Testing
     #expect(!appState.isDisplaySleepPreventionEnabled)
 }
 
+@Test @MainActor func continuationCopiesSelectedHistoryInTimeOrderAndPreservesSources() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = LocalSessionHistoryStore(fileURL: directory.appendingPathComponent("Sessions.json"))
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let earlier = makeSavedSession(
+        startedAt: Date(timeIntervalSinceReferenceDate: 100),
+        courseName: "Algorithms",
+        topic: "Graphs",
+        segments: [CaptionSegment(sequence: 3, sourceText: "Earlier", translatedText: "较早", startedAt: 4, endedAt: 5, state: .completed)]
+    )
+    let later = makeSavedSession(
+        startedAt: Date(timeIntervalSinceReferenceDate: 200),
+        courseName: "Databases",
+        topic: "Indexes",
+        segments: [CaptionSegment(sequence: 7, sourceText: "Later", translatedText: "较晚", startedAt: 8, endedAt: 9, state: .completed)]
+    )
+    _ = try store.save(later)
+    _ = try store.save(earlier)
+    let appState = AppState(sessionHistoryStore: store)
+
+    appState.prepareContinuation(from: [earlier.id, later.id])
+
+    #expect(appState.captionSegments.map(\.sourceText) == ["Earlier", "Later"])
+    #expect(appState.captionSegments.map(\.sequence) == [0, 1])
+    #expect(appState.captionSegments.map(\.translatedText) == ["较早", "较晚"])
+    #expect(appState.captionSegments.map(\.startedAt) == [4, 8])
+    #expect(appState.captionSegments.map(\.endedAt) == [5, 9])
+    #expect(appState.captionSegments.map(\.state.rawValue) == ["completed", "completed"])
+    #expect(Set(appState.captionSegments.map(\.id)).isDisjoint(with: Set([earlier.segments[0].id, later.segments[0].id])))
+    #expect(appState.courseName == "Databases")
+    #expect(appState.topic == "Indexes")
+    let loadedSources = try store.load()
+    #expect(loadedSources.map(\.id) == [later.id, earlier.id])
+    #expect(loadedSources[0].segments.map(\.sourceText) == ["Later"])
+    #expect(loadedSources[1].segments.map(\.sourceText) == ["Earlier"])
+}
+
+@Test func continuationTimelineStartsAtOrAfterCopiedHistory() {
+    var timeline = SessionTimeline(audioSessionStartedAt: 100, initialMappedTime: 9)
+    timeline.beginProviderTask(audioStartedAt: 100)
+
+    let mapped = timeline.map(.partial(providerSentenceID: "new", text: "New", startedAt: 0))
+
+    guard case let .partial(_, _, startedAt) = mapped else {
+        Issue.record("Expected a mapped partial event")
+        return
+    }
+    #expect(startedAt >= 9)
+}
+
+@Test func transcriptStabilizerAppendsToCopiedContinuationSegments() {
+    let copiedSegment = CaptionSegment(
+        sequence: 0,
+        sourceText: "Copied history",
+        translatedText: "已载入历史",
+        startedAt: 5,
+        endedAt: 6,
+        state: .completed
+    )
+    var stabilizer = TranscriptStabilizer(segments: [copiedSegment])
+    stabilizer.beginProviderTask()
+
+    _ = stabilizer.apply(.partial(providerSentenceID: "new", text: "New segment", startedAt: 6))
+    let updated = stabilizer.apply(.final(providerSentenceID: "new", text: "New segment", startedAt: 6, endedAt: 7))
+
+    #expect(updated.map(\.sourceText) == ["Copied history", "New segment"])
+    #expect(updated.map(\.sequence) == [0, 1])
+    #expect(updated[0].translatedText == "已载入历史")
+    #expect(updated[0].state.rawValue == "completed")
+    #expect(updated[1].state.rawValue == "committed")
+}
+
+@Test @MainActor func continuationDoesNotCreatePartialSessionForUnavailableSelection() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = LocalSessionHistoryStore(fileURL: directory.appendingPathComponent("Sessions.json"))
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let record = makeSavedSession(
+        startedAt: Date(timeIntervalSinceReferenceDate: 100),
+        courseName: "Algorithms",
+        topic: "Graphs",
+        segments: [CaptionSegment(sequence: 0, sourceText: "Source", startedAt: 1, state: .completed)]
+    )
+    _ = try store.save(record)
+    let appState = AppState(sessionHistoryStore: store)
+
+    appState.prepareContinuation(from: [record.id, UUID()])
+
+    #expect(appState.activeSession == nil)
+    #expect(appState.captionSegments.isEmpty)
+    #expect(appState.captureError == "无法续录课堂记录。所选记录已不可用。")
+}
+
+@Test @MainActor func continuationSaveMarksSourcesWithoutChangingTheirSubtitles() async throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = LocalSessionHistoryStore(fileURL: directory.appendingPathComponent("Sessions.json"))
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let source = makeSavedSession(
+        startedAt: Date(timeIntervalSinceReferenceDate: 100),
+        courseName: "Algorithms",
+        topic: "Graphs",
+        segments: [CaptionSegment(sequence: 0, sourceText: "Copied source", translatedText: "已载入来源", startedAt: 1, endedAt: 2, state: .completed)]
+    )
+    _ = try store.save(source)
+    let appState = AppState(sessionHistoryStore: store)
+
+    appState.prepareContinuation(from: [source.id])
+    let targetID = try #require(appState.activeSession?.id)
+    appState.captionSegments.append(CaptionSegment(
+        sequence: 1,
+        sourceText: "New continuation",
+        translatedText: "新的续录",
+        startedAt: 3,
+        endedAt: 4,
+        state: .completed
+    ))
+    appState.saveCurrentSession()
+
+    try await waitUntil(timeout: .seconds(2)) {
+        (try? store.load().first(where: { $0.id == source.id })?.mergedIntoStartedAt) != nil
+    }
+    try await waitUntil(timeout: .seconds(2)) { @MainActor in
+        appState.savedSessions.first(where: { $0.id == source.id })?.mergedIntoStartedAt != nil
+    }
+
+    let records = try store.load()
+    let markedSource = try #require(records.first(where: { $0.id == source.id }))
+    let target = try #require(records.first(where: { $0.id == targetID }))
+    #expect(markedSource.mergedIntoStartedAt == target.startedAt)
+    #expect(markedSource.segments.map(\.sourceText) == ["Copied source"])
+    #expect(markedSource.segments.map(\.translatedText) == ["已载入来源"])
+    #expect(markedSource.segments.map(\.startedAt) == [1])
+    #expect(target.mergedIntoStartedAt == nil)
+    #expect(target.segments.map(\.sourceText) == ["Copied source", "New continuation"])
+    #expect(LocalSessionRecordName.string(for: markedSource).contains("已合并到"))
+}
+
+@Test func historyStoreDecodesRecordsWithoutMergeMarker() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let fileURL = directory.appendingPathComponent("Sessions.json")
+    let store = LocalSessionHistoryStore(fileURL: fileURL)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    var record = makeSavedSession(
+        startedAt: Date(timeIntervalSinceReferenceDate: 100),
+        courseName: "Algorithms",
+        topic: "Graphs",
+        segments: [CaptionSegment(sequence: 0, sourceText: "Legacy", startedAt: 1, state: .completed)]
+    )
+    record.mergedIntoStartedAt = Date(timeIntervalSinceReferenceDate: 200)
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let encoded = try encoder.encode([record])
+    var legacyRecords = try #require(JSONSerialization.jsonObject(with: encoded) as? [[String: Any]])
+    legacyRecords[0].removeValue(forKey: "mergedIntoStartedAt")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try JSONSerialization.data(withJSONObject: legacyRecords).write(to: fileURL)
+
+    let loaded = try store.load()
+
+    #expect(loaded.count == 1)
+    #expect(loaded[0].id == record.id)
+    #expect(loaded[0].mergedIntoStartedAt == nil)
+    _ = try store.save(makeSavedSession(
+        startedAt: Date(timeIntervalSinceReferenceDate: 300),
+        courseName: "New record",
+        topic: "Unrelated",
+        segments: [CaptionSegment(sequence: 0, sourceText: "New", startedAt: 1, state: .completed)]
+    ))
+    let reloadedData = try Data(contentsOf: fileURL)
+    let reloadedRecords = try #require(JSONSerialization.jsonObject(with: reloadedData) as? [[String: Any]])
+    let legacyRecord = try #require(reloadedRecords.first { record in
+        let segments = record["segments"] as? [[String: Any]]
+        return segments?.first?["sourceText"] as? String == "Legacy"
+    })
+    #expect(legacyRecord["mergedIntoStartedAt"] == nil)
+}
+
 @Test func chunkerEmitsFixedDurationFramesAndFlushesRemainder() {
     var chunker = PCM16Chunker(sampleRate: 16_000, chunkDuration: 0.04)
     let input = PCM16Frame(
@@ -1124,6 +1308,28 @@ private func translationRequest(id: UUID, source: String) -> TranslationRequest 
         glossary: [],
         sourceLanguage: .english,
         targetLanguage: .simplifiedChinese
+    )
+}
+
+private func makeSavedSession(
+    startedAt: Date,
+    courseName: String,
+    topic: String,
+    segments: [CaptionSegment]
+) -> SavedLectureSession {
+    SavedLectureSession(
+        session: LectureSession(
+            startedAt: startedAt,
+            context: LectureContext(
+                courseName: courseName,
+                topic: topic,
+                sourceLanguage: .english,
+                targetLanguage: .simplifiedChinese,
+                glossary: []
+            ),
+            provider: .aliyunRealtime
+        ),
+        segments: segments
     )
 }
 

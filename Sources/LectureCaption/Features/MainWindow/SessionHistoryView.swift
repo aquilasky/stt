@@ -3,6 +3,7 @@ import SwiftUI
 struct SessionHistoryView: View {
     @Bindable var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedSessionIDs: Set<UUID> = []
 
     var body: some View {
         NavigationStack {
@@ -20,26 +21,37 @@ struct SessionHistoryView: View {
                     } else {
                         List {
                             ForEach(appState.savedSessions) { record in
-                                NavigationLink {
-                                    SavedSessionDetailView(
-                                        record: record,
-                                        fontSize: appState.captionFontSize,
-                                        showsTimestamps: appState.isCaptionTimestampVisible
-                                    )
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(LocalSessionRecordName.string(startedAt: record.startedAt))
-                                            .font(.headline)
-                                        Text(record.session.context.courseName.isEmpty ? "未填写课程名称" : record.session.context.courseName)
-                                            .foregroundStyle(.secondary)
-                                        Text(record.session.context.topic.isEmpty ? "未填写主题" : record.session.context.topic)
-                                            .font(.caption)
-                                            .foregroundStyle(.tertiary)
+                                HStack(spacing: 10) {
+                                    Toggle(isOn: selectionBinding(for: record.id)) {
+                                        EmptyView()
+                                    }
+                                    .toggleStyle(.checkbox)
+                                    .labelsHidden()
+                                    .accessibilityLabel("选择课堂记录")
+
+                                    NavigationLink {
+                                        SavedSessionDetailView(
+                                            record: record,
+                                            fontSize: appState.captionFontSize,
+                                            showsTimestamps: appState.isCaptionTimestampVisible
+                                        )
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(LocalSessionRecordName.string(for: record))
+                                                .font(.headline)
+                                            Text(record.session.context.courseName.isEmpty ? "未填写课程名称" : record.session.context.courseName)
+                                                .foregroundStyle(.secondary)
+                                            Text(record.session.context.topic.isEmpty ? "未填写主题" : record.session.context.topic)
+                                                .font(.caption)
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                     }
                                 }
                             }
                             .onDelete { offsets in
                                 let ids = offsets.map { appState.savedSessions[$0].id }
+                                selectedSessionIDs.subtract(ids)
                                 ids.forEach(appState.removeSavedSession)
                             }
                         }
@@ -62,10 +74,32 @@ struct SessionHistoryView: View {
                 .font(.headline)
 
             Spacer()
+
+            Button {
+                appState.prepareContinuation(from: selectedSessionIDs)
+                dismiss()
+            } label: {
+                Label("续录", systemImage: "play.fill")
+            }
+            .disabled(selectedSessionIDs.isEmpty)
+            .help("从所选记录创建新的续录课堂")
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .background(.bar)
+    }
+
+    private func selectionBinding(for id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { selectedSessionIDs.contains(id) },
+            set: { isSelected in
+                if isSelected {
+                    selectedSessionIDs.insert(id)
+                } else {
+                    selectedSessionIDs.remove(id)
+                }
+            }
+        )
     }
 }
 
@@ -90,7 +124,7 @@ private struct SavedSessionDetailView: View {
                 showsTimestamps: showsTimestamps
             )
         }
-            .navigationTitle(LocalSessionRecordName.string(startedAt: record.startedAt))
+            .navigationTitle(LocalSessionRecordName.string(for: record))
             .fileExporter(
                 isPresented: $isExporting,
                 document: exportDocument,
