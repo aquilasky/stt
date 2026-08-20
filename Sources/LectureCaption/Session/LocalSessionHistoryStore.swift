@@ -3,6 +3,17 @@ import Foundation
 struct SavedLectureSession: Identifiable, Codable, Sendable {
     let session: LectureSession
     let segments: [CaptionSegment]
+    var mergedIntoStartedAt: Date?
+
+    init(
+        session: LectureSession,
+        segments: [CaptionSegment],
+        mergedIntoStartedAt: Date? = nil
+    ) {
+        self.session = session
+        self.segments = segments
+        self.mergedIntoStartedAt = mergedIntoStartedAt
+    }
 
     var id: UUID { session.id }
     var startedAt: Date { session.startedAt }
@@ -45,8 +56,16 @@ struct LocalSessionHistoryStore: Sendable {
         }
     }
 
-    func save(_ record: SavedLectureSession) throws -> [SavedLectureSession] {
+    func save(
+        _ record: SavedLectureSession,
+        markingMergedSourceIDs sourceIDs: Set<UUID> = []
+    ) throws -> [SavedLectureSession] {
         var records = try load()
+        if !sourceIDs.isEmpty {
+            for index in records.indices where sourceIDs.contains(records[index].id) {
+                records[index].mergedIntoStartedAt = record.startedAt
+            }
+        }
         records.removeAll { $0.id == record.id }
         records.append(record)
         records.sort { $0.startedAt > $1.startedAt }
@@ -85,6 +104,7 @@ struct LocalSessionHistoryStore: Sendable {
 }
 
 enum LocalSessionHistoryWriteEvent: Sendable {
+    case saved([SavedLectureSession])
     case failed(String)
 }
 
@@ -92,6 +112,7 @@ actor LocalSessionHistoryWriter {
     private struct PendingSave: Sendable {
         let record: SavedLectureSession
         let revision: Int
+        let mergedSourceIDs: Set<UUID>
     }
 
     private let store: LocalSessionHistoryStore
@@ -108,10 +129,18 @@ actor LocalSessionHistoryWriter {
         eventChannel.stream
     }
 
-    func submit(_ record: SavedLectureSession, revision: Int) {
+    func submit(
+        _ record: SavedLectureSession,
+        revision: Int,
+        markingMergedSourceIDs sourceIDs: Set<UUID> = []
+    ) {
         guard revision >= latestRevisionByID[record.id, default: 0] else { return }
         latestRevisionByID[record.id] = revision
-        pendingSaves[record.id] = PendingSave(record: record, revision: revision)
+        pendingSaves[record.id] = PendingSave(
+            record: record,
+            revision: revision,
+            mergedSourceIDs: sourceIDs
+        )
         guard worker == nil else { return }
 
         worker = Task { [weak self] in
@@ -138,7 +167,11 @@ actor LocalSessionHistoryWriter {
 
         for pendingSave in saves {
             guard pendingSave.revision == latestRevisionByID[pendingSave.record.id] else { continue }
-            _ = try store.save(pendingSave.record)
+            let records = try store.save(
+                pendingSave.record,
+                markingMergedSourceIDs: pendingSave.mergedSourceIDs
+            )
+            eventChannel.yield(.saved(records))
         }
     }
 

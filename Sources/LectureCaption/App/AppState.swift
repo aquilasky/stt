@@ -62,6 +62,7 @@ final class AppState {
     @ObservationIgnored private let idleDisplaySleepActivity = IdleDisplaySleepActivity()
     @ObservationIgnored private var isContinuationPrepared = false
     @ObservationIgnored private var continuedSessionMinimumTimestamp: TimeInterval = 0
+    @ObservationIgnored private var continuedSourceSessionIDs: Set<UUID> = []
 
     init(sessionHistoryStore: LocalSessionHistoryStore = .default) {
         self.sessionHistoryStore = sessionHistoryStore
@@ -192,6 +193,7 @@ final class AppState {
             captionSegments = []
             transcriptStabilizer = TranscriptStabilizer()
             translatedSegmentIDs = []
+            continuedSourceSessionIDs = []
         }
         await translationQueue?.cancelAll()
         translationEventsTask?.cancel()
@@ -258,7 +260,11 @@ final class AppState {
         activeSession?.endedAt = .now
         if let pendingSave = makeCurrentSessionSave() {
             do {
-                await sessionHistoryWriter.submit(pendingSave.record, revision: pendingSave.revision)
+                await sessionHistoryWriter.submit(
+                    pendingSave.record,
+                    revision: pendingSave.revision,
+                    markingMergedSourceIDs: pendingSave.mergedSourceIDs
+                )
                 try await sessionHistoryWriter.flush()
             } catch {
                 captureError = "无法保存本地课堂记录。\n\(error.localizedDescription)"
@@ -558,11 +564,19 @@ final class AppState {
     func saveCurrentSession() {
         guard let pendingSave = makeCurrentSessionSave() else { return }
         Task { [sessionHistoryWriter] in
-            await sessionHistoryWriter.submit(pendingSave.record, revision: pendingSave.revision)
+            await sessionHistoryWriter.submit(
+                pendingSave.record,
+                revision: pendingSave.revision,
+                markingMergedSourceIDs: pendingSave.mergedSourceIDs
+            )
         }
     }
 
-    private func makeCurrentSessionSave() -> (record: SavedLectureSession, revision: Int)? {
+    private func makeCurrentSessionSave() -> (
+        record: SavedLectureSession,
+        revision: Int,
+        mergedSourceIDs: Set<UUID>
+    )? {
         guard let session = activeSession else { return nil }
 
         let savedSegments = captionSegments
@@ -575,7 +589,7 @@ final class AppState {
         savedSessions.append(record)
         savedSessions.sort { $0.startedAt > $1.startedAt }
         sessionHistoryRevision += 1
-        return (record, sessionHistoryRevision)
+        return (record, sessionHistoryRevision, continuedSourceSessionIDs)
     }
 
     func removeSavedSession(id: UUID) {
@@ -630,6 +644,7 @@ final class AppState {
             .flatMap { [$0.startedAt, $0.endedAt ?? $0.startedAt] }
             .max() ?? 0
         isContinuationPrepared = true
+        continuedSourceSessionIDs = selectedIDs
         captureError = nil
     }
 
@@ -638,7 +653,10 @@ final class AppState {
         sessionHistoryEventsTask = Task { [weak self] in
             for await event in events {
                 guard let self else { return }
-                if case let .failed(message) = event {
+                switch event {
+                case let .saved(records):
+                    savedSessions = records
+                case let .failed(message):
                     captureError = "无法保存本地课堂记录。\n\(message)"
                 }
             }

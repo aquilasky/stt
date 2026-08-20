@@ -37,7 +37,7 @@ struct SessionHistoryView: View {
                                         )
                                     } label: {
                                         VStack(alignment: .leading, spacing: 4) {
-                                            Text(LocalSessionRecordName.string(startedAt: record.startedAt))
+                                            Text(LocalSessionRecordName.string(for: record))
                                                 .font(.headline)
                                             Text(record.session.context.courseName.isEmpty ? "未填写课程名称" : record.session.context.courseName)
                                                 .foregroundStyle(.secondary)
@@ -124,7 +124,7 @@ private struct SavedSessionDetailView: View {
                 showsTimestamps: showsTimestamps
             )
         }
-            .navigationTitle(LocalSessionRecordName.string(startedAt: record.startedAt))
+            .navigationTitle(LocalSessionRecordName.string(for: record))
             .fileExporter(
                 isPresented: $isExporting,
                 document: exportDocument,
