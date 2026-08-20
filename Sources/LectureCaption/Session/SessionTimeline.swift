@@ -5,8 +5,9 @@ struct SessionTimeline: Sendable {
     private var providerTaskOffset: TimeInterval?
     private var latestMappedTime: TimeInterval = 0
 
-    init(audioSessionStartedAt: TimeInterval) {
+    init(audioSessionStartedAt: TimeInterval, initialMappedTime: TimeInterval = 0) {
         self.audioSessionStartedAt = audioSessionStartedAt
+        latestMappedTime = initialMappedTime
     }
 
     mutating func beginProviderTask(audioStartedAt: TimeInterval) {

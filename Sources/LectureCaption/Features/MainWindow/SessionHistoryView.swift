@@ -3,6 +3,7 @@ import SwiftUI
 struct SessionHistoryView: View {
     @Bindable var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedSessionIDs: Set<UUID> = []
 
     var body: some View {
         NavigationStack {
@@ -18,7 +19,7 @@ struct SessionHistoryView: View {
                             description: Text("结束课堂或点击保存记录后，会在这里保留完整双语字幕。")
                         )
                     } else {
-                        List {
+                        List(selection: $selectedSessionIDs) {
                             ForEach(appState.savedSessions) { record in
                                 NavigationLink {
                                     SavedSessionDetailView(
@@ -62,6 +63,15 @@ struct SessionHistoryView: View {
                 .font(.headline)
 
             Spacer()
+
+            Button {
+                appState.prepareContinuation(from: selectedSessionIDs)
+                dismiss()
+            } label: {
+                Label("续录", systemImage: "play.fill")
+            }
+            .disabled(selectedSessionIDs.isEmpty)
+            .help("从所选记录创建新的续录课堂")
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)

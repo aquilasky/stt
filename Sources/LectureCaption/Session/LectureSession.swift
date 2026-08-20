@@ -7,9 +7,16 @@ struct LectureSession: Identifiable, Codable, Sendable {
     var context: LectureContext
     var provider: SpeechProviderKind
 
-    init(context: LectureContext, provider: SpeechProviderKind) {
-        id = UUID()
-        startedAt = .now
+    init(
+        id: UUID = UUID(),
+        startedAt: Date = .now,
+        endedAt: Date? = nil,
+        context: LectureContext,
+        provider: SpeechProviderKind
+    ) {
+        self.id = id
+        self.startedAt = startedAt
+        self.endedAt = endedAt
         self.context = context
         self.provider = provider
     }

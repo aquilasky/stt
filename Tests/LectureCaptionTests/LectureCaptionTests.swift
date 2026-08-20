@@ -184,6 +184,102 @@ import Testing
     #expect(!appState.isDisplaySleepPreventionEnabled)
 }
 
+@Test @MainActor func continuationCopiesSelectedHistoryInTimeOrderAndPreservesSources() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = LocalSessionHistoryStore(fileURL: directory.appendingPathComponent("Sessions.json"))
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let earlier = makeSavedSession(
+        startedAt: Date(timeIntervalSinceReferenceDate: 100),
+        courseName: "Algorithms",
+        topic: "Graphs",
+        segments: [CaptionSegment(sequence: 3, sourceText: "Earlier", translatedText: "较早", startedAt: 4, endedAt: 5, state: .completed)]
+    )
+    let later = makeSavedSession(
+        startedAt: Date(timeIntervalSinceReferenceDate: 200),
+        courseName: "Databases",
+        topic: "Indexes",
+        segments: [CaptionSegment(sequence: 7, sourceText: "Later", translatedText: "较晚", startedAt: 8, endedAt: 9, state: .completed)]
+    )
+    _ = try store.save(later)
+    _ = try store.save(earlier)
+    let appState = AppState(sessionHistoryStore: store)
+
+    appState.prepareContinuation(from: [earlier.id, later.id])
+
+    #expect(appState.captionSegments.map(\.sourceText) == ["Earlier", "Later"])
+    #expect(appState.captionSegments.map(\.sequence) == [0, 1])
+    #expect(appState.captionSegments.map(\.translatedText) == ["较早", "较晚"])
+    #expect(appState.captionSegments.map(\.startedAt) == [4, 8])
+    #expect(appState.captionSegments.map(\.endedAt) == [5, 9])
+    #expect(appState.captionSegments.map(\.state.rawValue) == ["completed", "completed"])
+    #expect(Set(appState.captionSegments.map(\.id)).isDisjoint(with: Set([earlier.segments[0].id, later.segments[0].id])))
+    #expect(appState.courseName == "Databases")
+    #expect(appState.topic == "Indexes")
+    let loadedSources = try store.load()
+    #expect(loadedSources.map(\.id) == [later.id, earlier.id])
+    #expect(loadedSources[0].segments.map(\.sourceText) == ["Later"])
+    #expect(loadedSources[1].segments.map(\.sourceText) == ["Earlier"])
+}
+
+@Test func continuationTimelineStartsAtOrAfterCopiedHistory() {
+    var timeline = SessionTimeline(audioSessionStartedAt: 100, initialMappedTime: 9)
+    timeline.beginProviderTask(audioStartedAt: 100)
+
+    let mapped = timeline.map(.partial(providerSentenceID: "new", text: "New", startedAt: 0))
+
+    guard case let .partial(_, _, startedAt) = mapped else {
+        Issue.record("Expected a mapped partial event")
+        return
+    }
+    #expect(startedAt >= 9)
+}
+
+@Test func transcriptStabilizerAppendsToCopiedContinuationSegments() {
+    let copiedSegment = CaptionSegment(
+        sequence: 0,
+        sourceText: "Copied history",
+        translatedText: "已载入历史",
+        startedAt: 5,
+        endedAt: 6,
+        state: .completed
+    )
+    var stabilizer = TranscriptStabilizer(segments: [copiedSegment])
+    stabilizer.beginProviderTask()
+
+    _ = stabilizer.apply(.partial(providerSentenceID: "new", text: "New segment", startedAt: 6))
+    let updated = stabilizer.apply(.final(providerSentenceID: "new", text: "New segment", startedAt: 6, endedAt: 7))
+
+    #expect(updated.map(\.sourceText) == ["Copied history", "New segment"])
+    #expect(updated.map(\.sequence) == [0, 1])
+    #expect(updated[0].translatedText == "已载入历史")
+    #expect(updated[0].state.rawValue == "completed")
+    #expect(updated[1].state.rawValue == "committed")
+}
+
+@Test @MainActor func continuationDoesNotCreatePartialSessionForUnavailableSelection() throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = LocalSessionHistoryStore(fileURL: directory.appendingPathComponent("Sessions.json"))
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let record = makeSavedSession(
+        startedAt: Date(timeIntervalSinceReferenceDate: 100),
+        courseName: "Algorithms",
+        topic: "Graphs",
+        segments: [CaptionSegment(sequence: 0, sourceText: "Source", startedAt: 1, state: .completed)]
+    )
+    _ = try store.save(record)
+    let appState = AppState(sessionHistoryStore: store)
+
+    appState.prepareContinuation(from: [record.id, UUID()])
+
+    #expect(appState.activeSession == nil)
+    #expect(appState.captionSegments.isEmpty)
+    #expect(appState.captureError == "无法续录课堂记录。所选记录已不可用。")
+}
+
 @Test func chunkerEmitsFixedDurationFramesAndFlushesRemainder() {
     var chunker = PCM16Chunker(sampleRate: 16_000, chunkDuration: 0.04)
     let input = PCM16Frame(
@@ -1124,6 +1220,28 @@ private func translationRequest(id: UUID, source: String) -> TranslationRequest 
         glossary: [],
         sourceLanguage: .english,
         targetLanguage: .simplifiedChinese
+    )
+}
+
+private func makeSavedSession(
+    startedAt: Date,
+    courseName: String,
+    topic: String,
+    segments: [CaptionSegment]
+) -> SavedLectureSession {
+    SavedLectureSession(
+        session: LectureSession(
+            startedAt: startedAt,
+            context: LectureContext(
+                courseName: courseName,
+                topic: topic,
+                sourceLanguage: .english,
+                targetLanguage: .simplifiedChinese,
+                glossary: []
+            ),
+            provider: .aliyunRealtime
+        ),
+        segments: segments
     )
 }
 

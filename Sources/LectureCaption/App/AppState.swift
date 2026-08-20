@@ -60,6 +60,8 @@ final class AppState {
     @ObservationIgnored private var sessionHistoryEventsTask: Task<Void, Never>?
     @ObservationIgnored private var sessionHistoryRevision = 0
     @ObservationIgnored private let idleDisplaySleepActivity = IdleDisplaySleepActivity()
+    @ObservationIgnored private var isContinuationPrepared = false
+    @ObservationIgnored private var continuedSessionMinimumTimestamp: TimeInterval = 0
 
     init(sessionHistoryStore: LocalSessionHistoryStore = .default) {
         self.sessionHistoryStore = sessionHistoryStore
@@ -167,21 +169,30 @@ final class AppState {
 
         sessionGeneration += 1
         let generation = sessionGeneration
+        let wasContinuationPrepared = isContinuationPrepared
 
-        activeSession = LectureSession(
-            context: LectureContext(
-                courseName: courseName,
-                topic: topic,
-                sourceLanguage: sourceLanguage,
-                targetLanguage: targetLanguage,
-                glossary: glossary
-            ),
-            provider: speechProvider
+        let context = LectureContext(
+            courseName: courseName,
+            topic: topic,
+            sourceLanguage: sourceLanguage,
+            targetLanguage: targetLanguage,
+            glossary: glossary
         )
-        sessionTimeline = SessionTimeline(audioSessionStartedAt: ProcessInfo.processInfo.systemUptime)
-        captionSegments = []
-        transcriptStabilizer = TranscriptStabilizer()
-        translatedSegmentIDs = []
+        if isContinuationPrepared {
+            activeSession?.context = context
+            activeSession?.provider = speechProvider
+            sessionTimeline = SessionTimeline(
+                audioSessionStartedAt: ProcessInfo.processInfo.systemUptime,
+                initialMappedTime: continuedSessionMinimumTimestamp
+            )
+            isContinuationPrepared = false
+        } else {
+            activeSession = LectureSession(context: context, provider: speechProvider)
+            sessionTimeline = SessionTimeline(audioSessionStartedAt: ProcessInfo.processInfo.systemUptime)
+            captionSegments = []
+            transcriptStabilizer = TranscriptStabilizer()
+            translatedSegmentIDs = []
+        }
         await translationQueue?.cancelAll()
         translationEventsTask?.cancel()
         let translationQueue = TranslationQueue(
@@ -211,7 +222,11 @@ final class AppState {
             guard generation == sessionGeneration else { return }
             captureError = error.localizedDescription
             phase = .idle
-            activeSession = nil
+            if wasContinuationPrepared {
+                isContinuationPrepared = true
+            } else {
+                activeSession = nil
+            }
         }
     }
 
@@ -572,6 +587,50 @@ final class AppState {
                 self?.showSessionHistoryWriteError(error)
             }
         }
+    }
+
+    func prepareContinuation(from selectedIDs: Set<UUID>) {
+        guard canStart else { return }
+        guard !selectedIDs.isEmpty else { return }
+
+        let records = savedSessions
+            .filter { selectedIDs.contains($0.id) }
+            .sorted { $0.startedAt < $1.startedAt }
+        guard records.count == selectedIDs.count else {
+            captureError = "无法续录课堂记录。所选记录已不可用。"
+            return
+        }
+        guard let latestRecord = records.last else { return }
+
+        let normalizedSegments = records.flatMap { record in
+            record.segments
+                .sorted { $0.sequence < $1.sequence }
+        }.enumerated().map { index, segment in
+            CaptionSegment(
+                sequence: index,
+                sourceText: segment.sourceText,
+                translatedText: segment.translatedText,
+                startedAt: segment.startedAt,
+                endedAt: segment.endedAt,
+                state: segment.state
+            )
+        }
+
+        courseName = latestRecord.session.context.courseName
+        topic = latestRecord.session.context.topic
+        sourceLanguage = latestRecord.session.context.sourceLanguage
+        targetLanguage = latestRecord.session.context.targetLanguage
+        glossary = latestRecord.session.context.glossary
+        speechProvider = latestRecord.session.provider
+        activeSession = LectureSession(context: latestRecord.session.context, provider: latestRecord.session.provider)
+        captionSegments = normalizedSegments
+        transcriptStabilizer = TranscriptStabilizer(segments: normalizedSegments)
+        translatedSegmentIDs = Set(normalizedSegments.map(\.id))
+        continuedSessionMinimumTimestamp = normalizedSegments
+            .flatMap { [$0.startedAt, $0.endedAt ?? $0.startedAt] }
+            .max() ?? 0
+        isContinuationPrepared = true
+        captureError = nil
     }
 
     private func startSessionHistoryEventHandling() {

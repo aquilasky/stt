@@ -6,6 +6,11 @@ struct TranscriptStabilizer: Sendable {
     private var committedProviderIDs: Set<String> = []
     private var nextSequence = 0
 
+    init(segments: [CaptionSegment] = []) {
+        self.segments = segments
+        nextSequence = (segments.map(\.sequence).max() ?? -1) + 1
+    }
+
     mutating func beginProviderTask() {
         provisionalIndexes.removeAll()
         committedProviderIDs.removeAll()
