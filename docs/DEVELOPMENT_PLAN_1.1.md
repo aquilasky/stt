@@ -17,7 +17,7 @@
 5. 提供显式的防止系统自动息屏按钮。
 6. 从一个或多个历史记录创建新的续录会话，并在其后继续实时识别与翻译。
 
-低延迟实时翻译和悬浮字幕追踪改由 [LectureCaption 1.2.0 开发计划](DEVELOPMENT_PLAN_1.2.md) 在 1.1.0 完成后依次交付。本轮不包含系统音频采集、MiMo ASR、旧记录格式迁移、云同步或 App Store 发布。
+1.1.0 发布后的悬浮字幕追踪、主界面跟随、控制入口、配置分离与用量统计按照 [LectureCaption 1.1.x 开发计划](DEVELOPMENT_PLAN_1.1_X.md) 依次交付；低延迟实时翻译随后进入 [LectureCaption 1.2.0 开发计划](DEVELOPMENT_PLAN_1.2.md)。本轮不包含系统音频采集、MiMo ASR、旧记录格式迁移、云同步或 App Store 发布。
 
 ## 2. 交付原则
 
@@ -246,4 +246,4 @@ JSON 建议结构：
 - 完整回归开始、暂停、继续、结束、保存、历史、悬浮字幕和 Debug/Release 隔离。
 - 生成标准命名的 `LectureCaption.app`、ZIP 和 DMG，并同时上传 GitHub Release。
 
-低延迟实时翻译和悬浮字幕追踪在 1.1.0 发布后，按照 [LectureCaption 1.2.0 开发计划](DEVELOPMENT_PLAN_1.2.md) 实施。MiMo ASR 适配继续放在 1.2.0 完成之后，不与本计划中的任何 feature 混合。
+1.1.0 发布后的兼容改进按照 [LectureCaption 1.1.x 开发计划](DEVELOPMENT_PLAN_1.1_X.md) 实施；低延迟实时翻译随后按照 [LectureCaption 1.2.0 开发计划](DEVELOPMENT_PLAN_1.2.md) 实施。MiMo ASR 适配继续放在 1.2.0 完成之后，不与本计划中的任何 feature 混合。
