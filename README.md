@@ -204,7 +204,7 @@ swift test
 
 `swift build` 用于快速检查核心模块，不会生成带 `Info.plist`、应用图标和麦克风用途说明的完整 `.app`。需要实际使用或测试权限时，应通过 Xcode 工程构建。
 
-CI 会在 macOS arm64 环境执行空白检查、`swift test` 和 Xcode App 构建，配置见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。
+仓库不使用 GitHub Actions 或其他托管 CI/CD，以避免产生托管服务费用。提交前应在本机执行空白检查、`swift test` 与 arm64 Xcode App 构建。
 
 ## 打包 Release
 
