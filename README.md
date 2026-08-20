@@ -259,6 +259,8 @@ shasum -a 256 Release/LectureCaption.zip Release/LectureCaption.dmg
 
 ### 无法连接阿里云或提示服务器响应错误
 
+在 `1.1.1` 端点校验修复发布前，Workspace ID 只能从阿里云百炼控制台直接复制，不要填入 URL、主机名或第三方提供的值。当前版本会用该字段组成携带 API Key 的 WebSocket 地址。
+
 依次确认：
 
 1. Workspace ID 没有多余空格。
@@ -287,7 +289,9 @@ shasum -a 256 Release/LectureCaption.zip Release/LectureCaption.dmg
 - MiMo ASR 已推迟到 MVP 后评估。
 - DeepSeek 当前只翻译 final 原文；partial 流式低延迟翻译是 `1.2.0` 计划的唯一 feature。
 - 支持 TXT/JSON 导出，但不支持 Markdown 导出或历史记录编辑。
-- 悬浮字幕下边界追踪、主界面智能跟随、配置分离和 API 用量统计属于 `1.1.x` 计划，当前版本尚未提供。
+- 阿里云端点校验、本地敏感文件防护和 Release 隐私清理安排在 `1.1.1`～`1.1.3`，并优先于后续界面改进。
+- 悬浮字幕下边界追踪、主界面智能跟随、配置分离和 API 用量统计安排在 `1.1.4`～`1.1.8`，当前版本尚未提供。
+- 历史发布产物可能包含 LLVM coverage/profile 字符串或开发机绝对源码路径；静态检查未发现真实凭据，后续产物由 `1.1.3` 增加强制检查，旧 Release 不重写。
 - 在持续、低音量且稳定的输入下，本地活动检测可能误触发自动待机，详见 [Issue #53](https://github.com/aquilasky/stt/issues/53)。
 - 应用未经过 Apple 公证，也没有自动更新机制。
 - 2 小时稳定性和完整睡眠/唤醒恢复仍需继续验证。
