@@ -29,6 +29,7 @@ final class AppState {
     var captionSegments: [CaptionSegment] = []
     var captionFontSize: CGFloat = 18
     var isCaptionTimestampVisible = true
+    var isDisplaySleepPreventionEnabled = false
     var isFloatingCaptionVisible = false
     var floatingCaptionDisplayMode: FloatingCaptionDisplayMode = .bilingual
     var floatingCaptionFontSize: CGFloat = 20
@@ -58,6 +59,7 @@ final class AppState {
     @ObservationIgnored private let sessionHistoryWriter: LocalSessionHistoryWriter
     @ObservationIgnored private var sessionHistoryEventsTask: Task<Void, Never>?
     @ObservationIgnored private var sessionHistoryRevision = 0
+    @ObservationIgnored private let idleDisplaySleepActivity = IdleDisplaySleepActivity()
 
     init(sessionHistoryStore: LocalSessionHistoryStore = .default) {
         self.sessionHistoryStore = sessionHistoryStore
@@ -100,6 +102,17 @@ final class AppState {
 
     func increaseCaptionFontSize() {
         captionFontSize = min(Self.maximumCaptionFontSize, captionFontSize + Self.captionFontSizeStep)
+    }
+
+    func setDisplaySleepPreventionEnabled(_ enabled: Bool) {
+        guard isDisplaySleepPreventionEnabled != enabled else { return }
+        isDisplaySleepPreventionEnabled = enabled
+
+        if enabled {
+            idleDisplaySleepActivity.begin()
+        } else {
+            idleDisplaySleepActivity.end()
+        }
     }
 
     func decreaseFloatingCaptionFontSize() {
@@ -667,5 +680,29 @@ final class AppState {
             captionSegments[index].state = .translationFailed
             saveCurrentSession()
         }
+    }
+}
+
+private final class IdleDisplaySleepActivity: @unchecked Sendable {
+    private var token: NSObjectProtocol?
+
+    func begin() {
+        guard token == nil else { return }
+
+        token = ProcessInfo.processInfo.beginActivity(
+            options: [.idleDisplaySleepDisabled],
+            reason: "LectureCaption is keeping the display awake during a lecture."
+        )
+    }
+
+    func end() {
+        guard let token else { return }
+
+        ProcessInfo.processInfo.endActivity(token)
+        self.token = nil
+    }
+
+    deinit {
+        end()
     }
 }

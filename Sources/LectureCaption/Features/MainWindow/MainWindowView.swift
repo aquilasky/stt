@@ -76,6 +76,16 @@ struct MainWindowView: View {
                 .help(appState.isCaptionTimestampVisible ? "隐藏时间戳" : "显示时间戳")
                 .accessibilityLabel("显示时间戳")
 
+                Toggle(isOn: Binding(
+                    get: { appState.isDisplaySleepPreventionEnabled },
+                    set: { appState.setDisplaySleepPreventionEnabled($0) }
+                )) {
+                    Image(systemName: "display")
+                }
+                .toggleStyle(.button)
+                .help(appState.isDisplaySleepPreventionEnabled ? "允许系统自动息屏" : "防止系统自动息屏")
+                .accessibilityLabel("防止系统自动息屏")
+
                 Button {
                     showsConfiguration = true
                 } label: {
