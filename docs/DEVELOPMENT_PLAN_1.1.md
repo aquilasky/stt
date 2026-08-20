@@ -1,7 +1,7 @@
 # LectureCaption 1.1.0 开发计划
 
-> 文档状态：Planned
-> 最后更新：2026-08-17
+> 文档状态：Completed
+> 最后更新：2026-08-20
 > 基线版本：1.0.1
 > 目标版本：1.1.0
 > 目标平台：macOS 14+ / Apple Silicon
