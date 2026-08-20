@@ -648,7 +648,7 @@ JSON 导出应包含完整会话元数据、术语表、字幕 ID、顺序、时
 
 ## 10. 开发计划
 
-本节保留 1.0 MVP 的原始实施阶段。基于 1.0.1 的后续时间戳、TXT/JSON 导出、全屏和防息屏改进，按照 [LectureCaption 1.1.0 开发计划](DEVELOPMENT_PLAN_1.1.md) 实施；悬浮字幕追踪与低延迟实时翻译随后按照 [LectureCaption 1.2.0 开发计划](DEVELOPMENT_PLAN_1.2.md) 实施。
+本节保留 1.0 MVP 的原始实施阶段。1.1.0 的时间戳、TXT/JSON 导出、全屏、防息屏与历史续录已经完成；后续交互与用量改进按照 [LectureCaption 1.1.x 开发计划](DEVELOPMENT_PLAN_1.1_X.md) 实施，低延迟实时翻译随后按照 [LectureCaption 1.2.0 开发计划](DEVELOPMENT_PLAN_1.2.md) 实施。
 
 ### 阶段 1：音频原型（2～3 天）
 
