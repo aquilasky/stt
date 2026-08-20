@@ -6,49 +6,66 @@ struct SessionHistoryView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if appState.savedSessions.isEmpty {
-                    ContentUnavailableView(
-                        "暂无本地记录",
-                        systemImage: "clock.arrow.circlepath",
-                        description: Text("结束课堂或点击保存记录后，会在这里保留完整双语字幕。")
-                    )
-                } else {
-                    List {
-                        ForEach(appState.savedSessions) { record in
-                            NavigationLink {
-                                SavedSessionDetailView(
-                                    record: record,
-                                    fontSize: appState.captionFontSize,
-                                    showsTimestamps: appState.isCaptionTimestampVisible
-                                )
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(LocalSessionRecordName.string(startedAt: record.startedAt))
-                                        .font(.headline)
-                                    Text(record.session.context.courseName.isEmpty ? "未填写课程名称" : record.session.context.courseName)
-                                        .foregroundStyle(.secondary)
-                                    Text(record.session.context.topic.isEmpty ? "未填写主题" : record.session.context.topic)
-                                        .font(.caption)
-                                        .foregroundStyle(.tertiary)
+            VStack(spacing: 0) {
+                historyHeader
+                Divider()
+
+                Group {
+                    if appState.savedSessions.isEmpty {
+                        ContentUnavailableView(
+                            "暂无本地记录",
+                            systemImage: "clock.arrow.circlepath",
+                            description: Text("结束课堂或点击保存记录后，会在这里保留完整双语字幕。")
+                        )
+                    } else {
+                        List {
+                            ForEach(appState.savedSessions) { record in
+                                NavigationLink {
+                                    SavedSessionDetailView(
+                                        record: record,
+                                        fontSize: appState.captionFontSize,
+                                        showsTimestamps: appState.isCaptionTimestampVisible
+                                    )
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(LocalSessionRecordName.string(startedAt: record.startedAt))
+                                            .font(.headline)
+                                        Text(record.session.context.courseName.isEmpty ? "未填写课程名称" : record.session.context.courseName)
+                                            .foregroundStyle(.secondary)
+                                        Text(record.session.context.topic.isEmpty ? "未填写主题" : record.session.context.topic)
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
                                 }
                             }
-                        }
-                        .onDelete { offsets in
-                            let ids = offsets.map { appState.savedSessions[$0].id }
-                            ids.forEach(appState.removeSavedSession)
+                            .onDelete { offsets in
+                                let ids = offsets.map { appState.savedSessions[$0].id }
+                                ids.forEach(appState.removeSavedSession)
+                            }
                         }
                     }
                 }
             }
-            .navigationTitle("本地课堂记录")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("完成") { dismiss() }
-                }
-            }
         }
         .frame(minWidth: 620, minHeight: 500)
+    }
+
+    private var historyHeader: some View {
+        HStack(spacing: 12) {
+            Button(action: dismiss.callAsFunction) {
+                Image(systemName: "chevron.left")
+            }
+            .help("返回实时字幕")
+            .accessibilityLabel("返回实时字幕")
+
+            Text("本地课堂记录")
+                .font(.headline)
+
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(.bar)
     }
 }
 
