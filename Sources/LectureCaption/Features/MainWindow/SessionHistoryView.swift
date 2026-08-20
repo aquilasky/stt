@@ -19,28 +19,39 @@ struct SessionHistoryView: View {
                             description: Text("结束课堂或点击保存记录后，会在这里保留完整双语字幕。")
                         )
                     } else {
-                        List(selection: $selectedSessionIDs) {
+                        List {
                             ForEach(appState.savedSessions) { record in
-                                NavigationLink {
-                                    SavedSessionDetailView(
-                                        record: record,
-                                        fontSize: appState.captionFontSize,
-                                        showsTimestamps: appState.isCaptionTimestampVisible
-                                    )
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(LocalSessionRecordName.string(startedAt: record.startedAt))
-                                            .font(.headline)
-                                        Text(record.session.context.courseName.isEmpty ? "未填写课程名称" : record.session.context.courseName)
-                                            .foregroundStyle(.secondary)
-                                        Text(record.session.context.topic.isEmpty ? "未填写主题" : record.session.context.topic)
-                                            .font(.caption)
-                                            .foregroundStyle(.tertiary)
+                                HStack(spacing: 10) {
+                                    Toggle(isOn: selectionBinding(for: record.id)) {
+                                        EmptyView()
+                                    }
+                                    .toggleStyle(.checkbox)
+                                    .labelsHidden()
+                                    .accessibilityLabel("选择课堂记录")
+
+                                    NavigationLink {
+                                        SavedSessionDetailView(
+                                            record: record,
+                                            fontSize: appState.captionFontSize,
+                                            showsTimestamps: appState.isCaptionTimestampVisible
+                                        )
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(LocalSessionRecordName.string(startedAt: record.startedAt))
+                                                .font(.headline)
+                                            Text(record.session.context.courseName.isEmpty ? "未填写课程名称" : record.session.context.courseName)
+                                                .foregroundStyle(.secondary)
+                                            Text(record.session.context.topic.isEmpty ? "未填写主题" : record.session.context.topic)
+                                                .font(.caption)
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                     }
                                 }
                             }
                             .onDelete { offsets in
                                 let ids = offsets.map { appState.savedSessions[$0].id }
+                                selectedSessionIDs.subtract(ids)
                                 ids.forEach(appState.removeSavedSession)
                             }
                         }
@@ -76,6 +87,19 @@ struct SessionHistoryView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .background(.bar)
+    }
+
+    private func selectionBinding(for id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { selectedSessionIDs.contains(id) },
+            set: { isSelected in
+                if isSelected {
+                    selectedSessionIDs.insert(id)
+                } else {
+                    selectedSessionIDs.remove(id)
+                }
+            }
+        )
     }
 }
 
