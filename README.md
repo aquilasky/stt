@@ -2,7 +2,7 @@
 
 LectureCaption 是一款面向课堂和网课的 macOS 实时双语字幕应用。它从默认麦克风采集音频，通过阿里云百炼实时 ASR 显示原文，并可使用 DeepSeek `deepseek-v4-flash` 生成中文译文。
 
-当前稳定版本为 `1.0.1`，支持 macOS 14 及以上版本，仅构建和测试 Apple Silicon (`arm64`)。
+当前稳定版本为 `1.1.0`，支持 macOS 14 及以上版本，仅构建和测试 Apple Silicon (`arm64`)。
 
 ## 功能
 
@@ -11,10 +11,12 @@ LectureCaption 是一款面向课堂和网课的 macOS 实时双语字幕应用�
 - DeepSeek `deepseek-v4-flash` 异步翻译，支持课程、主题、近期上下文和术语表。
 - 本地输入活动检测，静音后停止云端 ASR，重新说话时带 800 ms 预滚自动恢复。
 - 完整字幕滚动查看、字号调整和本地课堂记录。
+- 阿里云句级时间戳、时间戳显示开关，以及 TXT/JSON 历史记录导出。
+- 主窗口原生全屏、防止系统自动息屏，以及从一条或多条历史记录继续录制。
 - 始终置顶、不抢键盘焦点的悬浮字幕，支持原文、译文和双语模式。
 - Debug 与 Release 的配置、API Key 和课堂记录完全隔离。
 
-当前不支持系统音频采集、Intel Mac、MiMo ASR、离线识别、云同步和历史记录文件导出。详细限制见[已知限制](#已知限制)。
+当前不支持系统音频采集、Intel Mac、MiMo ASR、离线识别和云同步。详细限制见[已知限制](#已知限制)。
 
 ## 系统要求
 
@@ -284,8 +286,9 @@ shasum -a 256 Release/LectureCaption.zip Release/LectureCaption.dmg
 - 仅支持 Apple Silicon，未针对 Intel Mac 优化或发布。
 - MiMo ASR 已推迟到 MVP 后评估。
 - DeepSeek 当前只翻译 final 原文；partial 流式低延迟翻译属于 `1.2.0` 计划的最后一个 feature。
-- 历史记录目前只能在应用内查看，TXT/JSON 导出尚未实现。
-- 主窗口原生全屏与防息屏属于 `1.1.0` 计划；悬浮字幕下边界追踪属于后续 `1.2.0` 计划，当前版本尚未提供。
+- 支持 TXT/JSON 导出，但不支持 Markdown 导出或历史记录编辑。
+- 悬浮字幕下边界追踪属于后续 `1.2.0` 计划，当前版本尚未提供。
+- 在持续、低音量且稳定的输入下，本地活动检测可能误触发自动待机，详见 [Issue #53](https://github.com/aquilasky/stt/issues/53)。
 - 应用未经过 Apple 公证，也没有自动更新机制。
 - 2 小时稳定性和完整睡眠/唤醒恢复仍需继续验证。
 
@@ -297,6 +300,7 @@ shasum -a 256 Release/LectureCaption.zip Release/LectureCaption.dmg
 - [版本控制与 Pull Request 规范](docs/VERSION_CONTROL.md)
 - [手工测试清单](docs/MANUAL_TEST_CHECKLIST.md)
 - [1.0.1 发布说明](docs/releases/1.0.1.md)
+- [1.1.0 发布说明](docs/releases/1.1.0.md)
 - [Agent 开发约束](AGENTS.md)
 
 提交代码前请阅读 `AGENTS.md`。项目严格按单 feature 顺序开发，每个 feature 必须完成独立子代理审查、自动化测试、主代理手动测试和用户必测确认后才能合并。
