@@ -13,6 +13,7 @@
 - 分支存活时间建议不超过 3 个工作日；大功能拆成可独立合并的小步。
 - 密钥、音频样本、个人配置、DerivedData 和签名材料不得提交。
 - MVP 阶段采用 Squash Merge，使 `main` 上每个 PR 对应一个可读提交。
+- 不使用 GitHub Actions、GitHub-hosted runner、Codespaces、付费 Marketplace App 或其他可能计费的托管构建、测试、部署、监控和分析服务。质量门禁只在本机执行并记录结果；计费状态不明确的能力必须先获得用户当次明确授权。
 
 ## 2. 分支模型
 
@@ -68,7 +69,7 @@ git push -u origin feature/12-microphone-capture
 gh pr create --fill --base main
 ```
 
-首次推送后尽早创建 Draft PR，以便持续检查变更范围和 CI；达到验收条件后再标记 Ready for review。
+首次推送后尽早创建 Draft PR，以便持续检查变更范围；达到本地验收条件后再标记 Ready for review。不得触发、重跑或等待远端 CI。
 
 ### 3.4 Feature 完成质量门禁
 
@@ -149,7 +150,7 @@ PR 合并前必须满足：
 - PR 中的阻断评论已解决。
 - 已完成第 3.4 节的子代理审查、自动化测试和主代理手动测试，并在 PR 中记录结论。
 
-个人项目允许作者自审合并，但必须完整填写 PR 模板并等待 CI 通过。邀请协作者后，将 `main` 保护规则升级为至少 1 个批准评审。
+个人项目允许作者自审合并，但必须完整填写 PR 模板，并记录本地构建、测试和手工验证结果。邀请协作者后，将 `main` 保护规则升级为至少 1 个批准评审。
 
 ### 5.3 合并方式
 
@@ -215,14 +216,13 @@ MiMo 分块 ASR 不属于当前 MVP；在 `1.0.0` 之后重新评估接口稳定
 远程仓库创建后，为 `main` 配置：
 
 - Require a pull request before merging。
-- Require status checks to pass before merging。
 - Require conversation resolution before merging。
 - Block force pushes。
 - Block branch deletion。
 - Automatically delete head branches。
 - 个人阶段不强制审批人数；有协作者后要求至少 1 个 approval。
 
-需要先建立 CI 后再把对应检查设为 required，避免保护规则引用不存在的检查而阻塞所有 PR。
+不得配置或要求远端 CI status check；当前仓库不使用 GitHub Actions 或其他托管 CI/CD。
 
 ## 9. 紧急修复
 
@@ -234,7 +234,7 @@ git pull --ff-only origin main
 git switch -c hotfix/48-keychain-crash
 ```
 
-只包含最小修复和回归测试，不夹带重构。PR 标记为高优先级，CI 通过后 Squash Merge；随后按 PATCH 版本发布。
+只包含最小修复和回归测试，不夹带重构。PR 标记为高优先级，本地质量门禁通过后 Squash Merge；随后按 PATCH 版本发布。
 
 ## 10. 禁止事项
 
