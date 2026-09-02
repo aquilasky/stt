@@ -114,17 +114,17 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
 
     func start(configuration: SpeechConfiguration) async throws {
         guard taskID == nil else { throw AliyunRealtimeProviderError.taskAlreadyRunning }
-        guard let apiKey = try apiKeyLoader(), !apiKey.isEmpty else {
-            throw AliyunRealtimeProviderError.missingAPIKey
-        }
         guard let endpoint = settings.endpoint else {
             throw AliyunRealtimeProviderError.invalidEndpoint
         }
+        guard let apiKey = try apiKeyLoader(), !apiKey.isEmpty else {
+            throw AliyunRealtimeProviderError.missingAPIKey
+        }
 
         let id = UUID().uuidString.lowercased()
-        var request = URLRequest(url: endpoint)
+        var request = URLRequest(url: endpoint.url)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue(settings.workspaceID, forHTTPHeaderField: "X-DashScope-WorkSpace")
+        request.setValue(endpoint.workspaceID, forHTTPHeaderField: "X-DashScope-WorkSpace")
         request.setValue("LectureCaption/1.0.0", forHTTPHeaderField: "User-Agent")
 
         taskID = id

@@ -1,5 +1,10 @@
 import Foundation
 
+struct AliyunRealtimeEndpoint: Sendable, Equatable {
+    let url: URL
+    let workspaceID: String
+}
+
 struct AliyunRealtimeSettings: Sendable, Equatable {
     enum Region: String, Sendable, CaseIterable {
         case singapore
@@ -34,8 +39,53 @@ struct AliyunRealtimeSettings: Sendable, Equatable {
         self.model = model
     }
 
-    var endpoint: URL? {
-        URL(string: "wss://\(workspaceID).\(region.hostSuffix)/api-ws/v1/inference")
+    var endpoint: AliyunRealtimeEndpoint? {
+        guard let validatedWorkspaceID = validatedWorkspaceID else {
+            return nil
+        }
+
+        let expectedHost = "\(validatedWorkspaceID).\(region.hostSuffix)"
+        var components = URLComponents()
+        components.scheme = "wss"
+        components.host = expectedHost
+        components.path = "/api-ws/v1/inference"
+
+        guard let url = components.url,
+              components.scheme == "wss",
+              components.user == nil,
+              components.password == nil,
+              components.port == nil,
+              components.query == nil,
+              components.fragment == nil,
+              components.path == "/api-ws/v1/inference",
+              components.host?.lowercased() == expectedHost.lowercased() else {
+            return nil
+        }
+
+        return AliyunRealtimeEndpoint(url: url, workspaceID: validatedWorkspaceID)
+    }
+
+    private var validatedWorkspaceID: String? {
+        let trimmed = workspaceID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scalars = trimmed.unicodeScalars
+        guard (1...63).contains(scalars.count),
+              let first = scalars.first,
+              let last = scalars.last,
+              isASCIIAlphaNumeric(first),
+              isASCIIAlphaNumeric(last),
+              scalars.allSatisfy({ isASCIIAlphaNumeric($0) || $0.value == 45 }) else {
+            return nil
+        }
+        return trimmed.lowercased()
+    }
+
+    private func isASCIIAlphaNumeric(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 48...57, 65...90, 97...122:
+            true
+        default:
+            false
+        }
     }
 }
 
