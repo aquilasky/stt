@@ -1,0 +1,10 @@
+title = "LectureCaption local secret checks (Gitleaks 8.24.2)"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "lecturecaption-provider-key"
+description = "DashScope / DeepSeek API key"
+regex = '''\bsk-[A-Za-z0-9]{32,}\b'''
+keywords = ["sk-"]

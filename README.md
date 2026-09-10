@@ -206,6 +206,8 @@ swift test
 
 仓库不使用 GitHub Actions 或其他托管 CI/CD，以避免产生托管服务费用。提交前应在本机执行空白检查、`swift test` 与 arm64 Xcode App 构建。
 
+敏感文件检查使用固定版本的本地 Gitleaks，运行 `bash Scripts/check-secrets.sh staged`、`worktree` 和 `history` 三种模式。安装与扫描范围见 [本地敏感文件检查](docs/LOCAL_SECURITY_CHECKS.md)。
+
 ## 打包 Release
 
 仓库提供 `Scripts/create-release.sh`，使用 Xcode Release 配置构建 arm64 App，并生成 APP、ZIP 和 DMG：
