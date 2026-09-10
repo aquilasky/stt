@@ -379,6 +379,26 @@ xcodebuild -project LectureCaption.xcodeproj \
 - 使用无效 Workspace ID、错误地域或无效 API Key 时，界面显示“阿里云 WebSocket 连接失败”，并提示检查 API Key、Workspace ID 和地域；不得显示 API Key。
 - 无效配置时显示清晰的连接或鉴权错误，应用不崩溃；已有字幕不丢失，麦克风本地监听仍可结束。
 
+### MAN-103 阿里云 Workspace ID 端点校验（必测，1.1.1）
+
+前置条件：已构建当前 Debug App；已授予麦克风权限；配置中已保存一个有效的阿里云 API Key。准备一个可正常识别的 Workspace ID，以便完成最后一步的正向验证。
+
+操作：
+
+1. 打开配置，将 Workspace ID 依次替换为 `attacker.example/x`、`user@host`、`workspace%2Fpath`、`workspace id`、`-workspace` 和 `workspace-`；每次点击“开始”并提供 2 秒语音输入。
+2. 每次失败后记录界面状态和错误提示，确认没有持续显示“正在连接”或“正在识别”。
+3. 改回从阿里云百炼控制台直接复制的有效 Workspace ID，保留正确地域，点击“开始”并说一段至少 5 秒的语音，等待原文出现后结束。
+
+输入：六个非法 Workspace ID、已保存的有效 API Key，以及一个有效 Workspace ID。
+
+预期输出：
+
+- 每个非法值均在本地显示“阿里云 Workspace ID 或区域无效”，不会建立识别连接、不会出现原文，且错误中不显示 API Key。
+- 失败后应用仍保持可操作，可立即替换 Workspace ID；已有课堂字幕和本地监听控制不丢失。
+- 改回有效 Workspace ID 后，应用按正常流程进入“正在连接”再进入“正在识别”，并出现原文字幕。
+
+记录附加字段：每个非法输入、对应错误提示、界面最终状态、是否出现网络连接状态、有效值恢复后的识别结果。
+
 ### MAN-102 Debug 与 Release 本机配置隔离（必测）
 
 前置条件：已分别构建 Debug App 和当前 Release App；两个 App 均未运行。若现有 Release `Sessions.json` 格式无效，先手动检查或备份该文件，再准备一个可正常打开的 Release 记录库。

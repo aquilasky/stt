@@ -504,9 +504,44 @@ import Testing
     let singapore = try #require(AliyunRealtimeSettings(workspaceID: "workspace", region: .singapore).endpoint)
     let beijing = try #require(AliyunRealtimeSettings(workspaceID: "workspace", region: .beijing).endpoint)
 
-    #expect(singapore.absoluteString == "wss://workspace.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference")
-    #expect(beijing.absoluteString == "wss://workspace.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference")
+    #expect(singapore.url.absoluteString == "wss://workspace.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference")
+    #expect(beijing.url.absoluteString == "wss://workspace.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference")
+    #expect(singapore.workspaceID == "workspace")
+    #expect(beijing.workspaceID == "workspace")
     #expect(AliyunRealtimeSettings.Region.beijing.displayName == "北京")
+}
+
+@Test func aliyunSettingsRejectWorkspaceIDsThatCouldChangeTheEndpoint() {
+    let invalidWorkspaceIDs = [
+        "attacker.example/x",
+        "user@host",
+        "workspace%2Fpath",
+        "workspace。example",
+        "workspace／path",
+        "workspace\nattacker",
+        "workspace id",
+        "-workspace",
+        "workspace-",
+        String(repeating: "a", count: 64)
+    ]
+
+    for workspaceID in invalidWorkspaceIDs {
+        #expect(AliyunRealtimeSettings(workspaceID: workspaceID).endpoint == nil)
+    }
+}
+
+@Test func aliyunSettingsNormalizeValidatedWorkspaceIDsBeforeBuildingEndpoints() throws {
+    let endpoint = try #require(AliyunRealtimeSettings(workspaceID: "  Workspace-42  ", region: .beijing).endpoint)
+
+    #expect(endpoint.workspaceID == "workspace-42")
+    #expect(endpoint.url.scheme == "wss")
+    #expect(endpoint.url.host == "workspace-42.cn-beijing.maas.aliyuncs.com")
+    #expect(endpoint.url.path == "/api-ws/v1/inference")
+    #expect(endpoint.url.user == nil)
+    #expect(endpoint.url.password == nil)
+    #expect(endpoint.url.port == nil)
+    #expect(endpoint.url.query == nil)
+    #expect(endpoint.url.fragment == nil)
 }
 
 @Test func aliyunBadServerResponseHasActionableHandshakeError() {
@@ -941,6 +976,57 @@ import Testing
     }
 }
 
+@Test func aliyunProviderRejectsInvalidEndpointBeforeLoadingCredentialsOrConnecting() async {
+    let credentialLoads = SynchronousCallCounter()
+    let transport = FakeAliyunWebSocketTransport()
+    let provider = AliyunRealtimeSTTProvider(
+        settings: AliyunRealtimeSettings(workspaceID: "attacker.example/x", region: .beijing),
+        apiKeyLoader: {
+            credentialLoads.increment()
+            return "test-key"
+        },
+        transport: transport
+    )
+    let configuration = SpeechConfiguration(
+        provider: .aliyunRealtime,
+        sourceLanguage: .automatic,
+        sampleRate: 16_000,
+        glossary: []
+    )
+
+    await #expect(throws: AliyunRealtimeProviderError.invalidEndpoint) {
+        try await provider.start(configuration: configuration)
+    }
+
+    #expect(credentialLoads.count == 0)
+    #expect(await transport.connectRequests.isEmpty)
+    #expect(await transport.sentText.isEmpty)
+    #expect(await transport.sentData.isEmpty)
+}
+
+@Test func aliyunProviderUsesTheValidatedWorkspaceIDForTheRequestHeader() async throws {
+    let transport = FakeAliyunWebSocketTransport()
+    let provider = AliyunRealtimeSTTProvider(
+        settings: AliyunRealtimeSettings(workspaceID: " Workspace-42 ", region: .singapore),
+        apiKeyLoader: { "test-key" },
+        transport: transport
+    )
+    let configuration = SpeechConfiguration(
+        provider: .aliyunRealtime,
+        sourceLanguage: .automatic,
+        sampleRate: 16_000,
+        glossary: []
+    )
+
+    try await provider.start(configuration: configuration)
+
+    let requests = await transport.connectRequests
+    let request = try #require(requests.first)
+    #expect(request.url?.host == "workspace-42.ap-southeast-1.maas.aliyuncs.com")
+    #expect(request.value(forHTTPHeaderField: "X-DashScope-WorkSpace") == "workspace-42")
+    await provider.stop()
+}
+
 @Test func aliyunServerErrorDoesNotExposeServerMessage() {
     let error = AliyunServerError(code: "AUTH_ERROR", message: "Bearer secret-value")
 
@@ -1194,6 +1280,7 @@ private actor FakeAliyunWebSocketTransport: AliyunWebSocketTransport {
     private var messages: [String] = []
     private var connected = false
     private let connectError: URLError?
+    private(set) var connectRequests: [URLRequest] = []
     private(set) var sentText: [String] = []
     private(set) var sentData: [Data] = []
     private(set) var receiveCallCount = 0
@@ -1203,6 +1290,7 @@ private actor FakeAliyunWebSocketTransport: AliyunWebSocketTransport {
     }
 
     func connect(request: URLRequest) async throws {
+        connectRequests.append(request)
         if let connectError { throw connectError }
         connected = true
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-key")
@@ -1231,6 +1319,23 @@ private actor FakeAliyunWebSocketTransport: AliyunWebSocketTransport {
 
     func enqueue(_ message: String) {
         messages.append(message)
+    }
+}
+
+private final class SynchronousCallCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedCount = 0
+
+    func increment() {
+        lock.lock()
+        storedCount += 1
+        lock.unlock()
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedCount
     }
 }
 
