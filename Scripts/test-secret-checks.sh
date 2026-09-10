@@ -27,6 +27,12 @@ expect_status() {
         exit 1
     fi
 }
+expect_redacted() {
+    if rg -F "$secret" "$fixture/result.log" >/dev/null; then
+        echo 'FAIL: scanner leaked synthetic secret' >&2
+        exit 1
+    fi
+}
 for mode in staged worktree history; do
     expect_status 0 bash Scripts/check-secrets.sh "$mode"
 done
@@ -44,17 +50,26 @@ rm wrong-version
 secret="sk-$(printf 'a%.0s' {1..32})"
 printf '%s\n' "$secret" > sample.txt
 expect_status 1 bash Scripts/check-secrets.sh worktree
-if rg -F "$secret" "$fixture/result.log" >/dev/null; then
-    echo 'FAIL: scanner leaked synthetic secret' >&2
-    exit 1
-fi
+expect_redacted
+# Neither inline allow comments nor fingerprint ignores may bypass the gate.
+printf '%s # gitleaks:allow\n' "$secret" > sample.txt
+printf 'sample.txt:lecturecaption-provider-key:1\n' > .gitleaksignore
+expect_status 1 bash Scripts/check-secrets.sh worktree
+expect_redacted
+rm .gitleaksignore
 git add sample.txt
 expect_status 1 bash Scripts/check-secrets.sh staged
+expect_redacted
 git -c core.hooksPath=/dev/null commit -qm 'synthetic secret'
 git rm -q sample.txt
 git -c core.hooksPath=/dev/null commit -qm 'remove synthetic secret'
 expect_status 0 bash Scripts/check-secrets.sh worktree
 expect_status 1 bash Scripts/check-secrets.sh history
+expect_redacted
+# Synthetic PEM marker; not a usable private key.
+printf '%s\n' '-----BEGIN PRIVATE KEY-----' "$(printf 'c3ludGhldGlj%.0s' {1..8})" '-----END PRIVATE KEY-----' > private-fixture.txt
+expect_status 1 bash Scripts/check-secrets.sh worktree
+rm private-fixture.txt
 # Ignoring an already tracked file cannot hide it from worktree scanning.
 printf '%s\n' "$secret" > sample.key
 git add -f sample.key
