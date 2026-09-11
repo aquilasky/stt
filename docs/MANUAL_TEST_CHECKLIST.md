@@ -379,6 +379,23 @@ xcodebuild -project LectureCaption.xcodeproj \
 - 使用无效 Workspace ID、错误地域或无效 API Key 时，界面显示“阿里云 WebSocket 连接失败”，并提示检查 API Key、Workspace ID 和地域；不得显示 API Key。
 - 无效配置时显示清晰的连接或鉴权错误，应用不崩溃；已有字幕不丢失，麦克风本地监听仍可结束。
 
+### MAN-104 本地敏感文件防护（必测，1.1.2）
+
+前置条件：在仓库根目录打开终端；已按 `docs/LOCAL_SECURITY_CHECKS.md` 确认 Gitleaks 8.24.2。若使用当前已下载的工具，执行 `export GITLEAKS_BIN="$PWD/.build/security-tools/gitleaks"`。
+
+操作：
+
+1. 执行 `bash Scripts/test-secret-checks.sh`。它会在独立临时仓库创建合成密钥，依次验证工作区、暂存区、删除后的历史均被阻断，再检查输出脱敏、错误版本与缺少工具的失败行为。
+2. 执行 `bash Scripts/check-secrets.sh staged`、`bash Scripts/check-secrets.sh worktree` 和 `bash Scripts/check-secrets.sh history`，每次执行后以 `echo $?` 记录退出码。
+3. 执行 `git check-ignore Release/test.app Sessions.json APIUsage.json test.pem test.key test.pfx`，确认六个路径均显示。
+4. 启动 Debug App，打开课程配置和历史记录并返回主窗口，确认均可正常操作。
+
+输入：集成测试自动生成的合成密钥、当前源码和 Git 历史；不需要输入真实 API Key，不需要调用云端 API。
+
+预期输出：第一步显示 `Local security integration tests passed.`；三种扫描均显示通过并返回 0，或对真实发现明确返回非零且只显示脱敏定位信息（非零时应报告，不可视为通过）。第三步列出六个被忽略路径，第四步应用正常操作。脚本不修改当前暂存区、历史或全局 Git 配置。
+
+记录结果：Gitleaks 版本、第一步结论、三种扫描退出码、ignore 路径结果、Debug App 操作结果。用户确认状态：待测试。
+
 ### MAN-103 阿里云 Workspace ID 端点校验（必测，1.1.1）
 
 前置条件：已构建当前 Debug App；已授予麦克风权限；配置中已保存一个有效的阿里云 API Key。准备一个可正常识别的 Workspace ID，以便完成最后一步的正向验证。

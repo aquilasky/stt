@@ -24,9 +24,15 @@ Config/LocalCredentials.json
 *-apiKey-*.csv
 *.p8
 *.p12
+*.pem
+*.key
+*.pfx
 *.mobileprovision
 
 # Local runtime data
+Release/
+Sessions.json
+APIUsage.json
 *.log
 *.pcm
 *.wav
