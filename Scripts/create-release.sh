@@ -4,7 +4,6 @@ set -euo pipefail
 readonly app_name="LectureCaption"
 readonly repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 readonly output_directory="${RELEASE_OUTPUT_DIRECTORY:-$repository_root/Release}"
-readonly derived_data_directory="$repository_root/.build/release-package"
 readonly app_path="$output_directory/$app_name.app"
 readonly zip_path="$output_directory/$app_name.zip"
 readonly dmg_path="$output_directory/$app_name.dmg"
@@ -30,6 +29,7 @@ fi
 
 readonly staging_directory="$(mktemp -d "${TMPDIR:-/tmp}/${app_name}.release.XXXXXX")"
 trap 'rm -rf "$staging_directory"' EXIT
+readonly derived_data_directory="$staging_directory/DerivedData"
 
 mkdir -p "$output_directory"
 xcodebuild \
@@ -39,6 +39,11 @@ xcodebuild \
     -sdk macosx \
     -arch arm64 \
     -derivedDataPath "$derived_data_directory" \
+    ENABLE_CODE_COVERAGE=NO \
+    CLANG_ENABLE_CODE_COVERAGE=NO \
+    CLANG_COVERAGE_MAPPING=NO \
+    GCC_GENERATE_TEST_COVERAGE_FILES=NO \
+    GCC_INSTRUMENT_PROGRAM_FLOW_ARCS=NO \
     build
 
 readonly built_app="$derived_data_directory/Build/Products/Release/$app_name.app"
@@ -47,6 +52,7 @@ if [[ ! -d "$built_app" ]]; then
     exit 1
 fi
 
+bash "$repository_root/Scripts/check-release-privacy.sh" "$built_app"
 ditto "$built_app" "$app_path"
 
 if [[ -n "${CODE_SIGN_IDENTITY:-}" ]]; then
@@ -68,6 +74,10 @@ hdiutil create \
     -format UDZO \
     -ov \
     "$dmg_path"
+
+for asset in "$app_path" "$zip_path" "$dmg_path"; do
+    bash "$repository_root/Scripts/check-release-privacy.sh" "$asset"
+done
 
 readonly version="$(plutil -extract CFBundleShortVersionString raw "$app_path/Contents/Info.plist")"
 print "Packaged $app_name $version:"

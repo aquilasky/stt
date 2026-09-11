@@ -237,6 +237,8 @@ CODE_SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' \
   Scripts/create-release.sh
 ```
 
+脚本使用本次打包独有的临时 DerivedData，显式关闭 Release coverage/profile 插桩，并映射 Release 源码路径（不改变 Debug）。签名前检查 App，再检查最终 APP、ZIP 和只读挂载的 DMG 中的主可执行文件；发现插桩或开发机路径时返回非零，不报告打包成功。可单独运行 `bash Scripts/check-release-privacy.sh <资产路径>`，回归测试为 `bash Scripts/test-release-privacy.sh`（需要本机 Xcode、ripgrep 和磁盘镜像挂载能力）。详见 [发布隐私检查](docs/RELEASE_PRIVACY.md)。
+
 脚本会执行 `codesign --verify --deep --strict`，但不会自动完成 Apple notarization。发布前还应核对版本号、运行 Release App，并计算产物校验值：
 
 ```bash

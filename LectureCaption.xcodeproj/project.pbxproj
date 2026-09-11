@@ -143,6 +143,11 @@
 		A071 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_CODE_COVERAGE = NO;
+				CLANG_COVERAGE_MAPPING = NO;
+				ENABLE_CODE_COVERAGE = NO;
+				GCC_GENERATE_TEST_COVERAGE_FILES = NO;
+				GCC_INSTRUMENT_PROGRAM_FLOW_ARCS = NO;
 				CLANG_ENABLE_MODULES = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -168,6 +173,12 @@
 		A073 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_CODE_COVERAGE = NO;
+				CLANG_COVERAGE_MAPPING = NO;
+				ENABLE_CODE_COVERAGE = NO;
+				GCC_GENERATE_TEST_COVERAGE_FILES = NO;
+				GCC_INSTRUMENT_PROGRAM_FLOW_ARCS = NO;
+				OTHER_SWIFT_FLAGS = "$(inherited) -file-prefix-map \"$(SRCROOT)=.\" -debug-prefix-map \"$(SRCROOT)=.\"";
 				CODE_SIGNING_ALLOWED = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
 				LECTURE_CAPTION_STORAGE_DIRECTORY = LectureCaption;
