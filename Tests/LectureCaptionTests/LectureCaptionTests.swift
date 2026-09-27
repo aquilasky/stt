@@ -149,25 +149,89 @@ import Testing
     #expect(!behavior.contains(.moveToActiveSpace))
 }
 
-@Test @MainActor func floatingCaptionHandleForwardsFirstClickToNativeWindowDrag() throws {
-    let panel = DragRecordingPanel(
-        contentRect: NSRect(x: 0, y: 0, width: 420, height: 180),
-        styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false
-    )
-    let handle = FloatingCaptionDragView(frame: NSRect(x: 0, y: 0, width: 32, height: 32))
-    panel.contentView = handle
+@Test @MainActor func floatingCaptionRoutesTextAndBlankAreaDragsWithoutTakingFocus() throws {
+    let panel = DragRecordingPanel()
+    let content = NSView(frame: NSRect(x: 0, y: 0, width: 680, height: 300))
+    let text = NSTextField(labelWithString: "Caption")
+    // SwiftUI text is not an NSControl; model a view that refuses background dragging.
+    let caption = BackgroundDragRejectingView(frame: NSRect(x: 40, y: 40, width: 200, height: 100))
+    content.addSubview(caption)
+    panel.contentView = content
+    for point in [NSPoint(x: 60, y: 60), NSPoint(x: 400, y: 150)] {
+        let event = try captionMouseEvent(panel: panel, point: point)
+        #expect(panel.shouldStartWindowDrag(for: event))
+        panel.sendEvent(event)
+        #expect(panel.dragEvent === event)
+    }
+    #expect(!panel.canBecomeKey)
+    #expect(!panel.canBecomeMain)
+    #expect(!panel.isKeyWindow)
+    // An actual native control must still be excluded.
+    text.frame = NSRect(x: 300, y: 40, width: 100, height: 30)
+    content.addSubview(text)
+    #expect(!panel.shouldStartWindowDrag(for: try captionMouseEvent(panel: panel, point: NSPoint(x: 320, y: 50))))
+}
+
+@Test @MainActor func floatingCaptionExcludesControlsResizeMarginAndNonMouseDownEvents() throws {
+    let panel = DragRecordingPanel()
+    let content = NSView(frame: NSRect(x: 0, y: 0, width: 680, height: 300))
+    panel.contentView = content
+    let controls = FloatingCaptionControlsView(frame: NSRect(x: 350, y: 240, width: 300, height: 40))
+    content.addSubview(controls)
+    #expect(controls.hitTest(NSPoint(x: 360, y: 250)) == nil)
+    #expect(!panel.shouldStartWindowDrag(for: try captionMouseEvent(panel: panel, point: NSPoint(x: 400, y: 250))))
+    controls.isHidden = true
+    #expect(panel.shouldStartWindowDrag(for: try captionMouseEvent(panel: panel, point: NSPoint(x: 400, y: 250))))
+    controls.isHidden = false
+    controls.removeFromSuperview()
+    #expect(panel.shouldStartWindowDrag(for: try captionMouseEvent(panel: panel, point: NSPoint(x: 400, y: 250))))
+    for point in [NSPoint(x: 2, y: 100), NSPoint(x: 678, y: 100), NSPoint(x: 100, y: 2), NSPoint(x: 100, y: 298)] {
+        #expect(!panel.shouldStartWindowDrag(for: try captionMouseEvent(panel: panel, point: point)))
+    }
+    let scroller = NSScroller(frame: NSRect(x: 620, y: 40, width: 16, height: 140))
+    content.addSubview(scroller)
+    #expect(!panel.shouldStartWindowDrag(for: try captionMouseEvent(panel: panel, point: NSPoint(x: 628, y: 80))))
+    for type in [NSEvent.EventType.rightMouseDown, .leftMouseUp, .leftMouseDragged] {
+        #expect(!panel.shouldStartWindowDrag(for: try captionMouseEvent(panel: panel, point: NSPoint(x: 100, y: 100), type: type)))
+    }
+    let scroll = try #require(CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: 20, wheel2: 0, wheel3: 0))
+    #expect(!panel.shouldStartWindowDrag(for: try #require(NSEvent(cgEvent: scroll))))
+}
+
+@Test @MainActor func floatingCaptionControlsExclusionUsesLiveFlippedGeometry() throws {
+    let panel = DragRecordingPanel()
+    let content = NSView(frame: NSRect(x: 0, y: 0, width: 680, height: 300))
+    panel.contentView = content
+    let container = FlippedCaptionTestView(frame: NSRect(x: 50, y: 40, width: 500, height: 200))
+    content.addSubview(container)
+    let controls = FloatingCaptionControlsView(frame: NSRect(x: 200, y: 10, width: 250, height: 40))
+    container.addSubview(controls)
+    let original = controls.convert(NSPoint(x: 20, y: 20), to: nil)
+    #expect(!panel.shouldStartWindowDrag(for: try captionMouseEvent(panel: panel, point: original)))
+    controls.setFrameOrigin(NSPoint(x: 0, y: 80))
+    let moved = controls.convert(NSPoint(x: 20, y: 20), to: nil)
+    #expect(!panel.shouldStartWindowDrag(for: try captionMouseEvent(panel: panel, point: moved)))
+    #expect(panel.shouldStartWindowDrag(for: try captionMouseEvent(panel: panel, point: original)))
+}
+
+@MainActor private final class FlippedCaptionTestView: NSView {
+    override var isFlipped: Bool { true }
+}
+
+@MainActor private func captionMouseEvent(panel: NSPanel, point: NSPoint, type: NSEvent.EventType = .leftMouseDown) throws -> NSEvent {
     let event = try #require(NSEvent.mouseEvent(
-        with: .leftMouseDown, location: NSPoint(x: 16, y: 16), modifierFlags: [],
+        with: type, location: point, modifierFlags: [],
         timestamp: 0, windowNumber: panel.windowNumber, context: nil,
         eventNumber: 0, clickCount: 1, pressure: 1
     ))
-    #expect(handle.acceptsFirstMouse(for: event))
-    handle.mouseDown(with: event)
-    #expect(panel.dragEvent === event)
-    #expect(!panel.isKeyWindow)
+    return event
 }
 
-@MainActor private final class DragRecordingPanel: NSPanel {
+@MainActor private final class BackgroundDragRejectingView: NSView {
+    override var mouseDownCanMoveWindow: Bool { false }
+}
+
+@MainActor private final class DragRecordingPanel: FloatingCaptionPanel {
     var dragEvent: NSEvent?
     override func performDrag(with event: NSEvent) { dragEvent = event }
 }

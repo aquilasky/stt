@@ -14,17 +14,6 @@ struct FloatingCaptionWindowView: View {
                 .padding(.top, 68)
                 .padding(.bottom, 32)
 
-            FloatingCaptionDragHandle()
-                .frame(width: 32, height: 32)
-                .overlay {
-                    Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
-                        .foregroundStyle(.white.opacity(0.65))
-                        .allowsHitTesting(false)
-                }
-                .help("按住此处拖动悬浮字幕")
-                .padding(20)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
             if isHovering {
                 controls
                     .padding(14)
@@ -119,24 +108,21 @@ struct FloatingCaptionWindowView: View {
         .controlSize(.small)
         .padding(6)
         .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(FloatingCaptionControlsRegion())
     }
 }
 
-private struct FloatingCaptionDragHandle: NSViewRepresentable {
-    func makeNSView(context: Context) -> FloatingCaptionDragView {
-        FloatingCaptionDragView()
+private struct FloatingCaptionControlsRegion: NSViewRepresentable {
+    func makeNSView(context: Context) -> FloatingCaptionControlsView {
+        FloatingCaptionControlsView()
     }
 
-    func updateNSView(_ nsView: FloatingCaptionDragView, context: Context) {}
+    func updateNSView(_ nsView: FloatingCaptionControlsView, context: Context) {}
 }
 
-/// Explicitly hand the drag to AppKit instead of relying on SwiftUI background hit testing.
-final class FloatingCaptionDragView: NSView {
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    override func mouseDown(with event: NSEvent) {
-        window?.performDrag(with: event)
-    }
+/// Geometry only: SwiftUI buttons keep receiving their own mouse events.
+final class FloatingCaptionControlsView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 private struct FloatingCaptionSegmentView: View {
