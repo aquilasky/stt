@@ -149,6 +149,29 @@ import Testing
     #expect(!behavior.contains(.moveToActiveSpace))
 }
 
+@Test @MainActor func floatingCaptionHandleForwardsFirstClickToNativeWindowDrag() throws {
+    let panel = DragRecordingPanel(
+        contentRect: NSRect(x: 0, y: 0, width: 420, height: 180),
+        styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false
+    )
+    let handle = FloatingCaptionDragView(frame: NSRect(x: 0, y: 0, width: 32, height: 32))
+    panel.contentView = handle
+    let event = try #require(NSEvent.mouseEvent(
+        with: .leftMouseDown, location: NSPoint(x: 16, y: 16), modifierFlags: [],
+        timestamp: 0, windowNumber: panel.windowNumber, context: nil,
+        eventNumber: 0, clickCount: 1, pressure: 1
+    ))
+    #expect(handle.acceptsFirstMouse(for: event))
+    handle.mouseDown(with: event)
+    #expect(panel.dragEvent === event)
+    #expect(!panel.isKeyWindow)
+}
+
+@MainActor private final class DragRecordingPanel: NSPanel {
+    var dragEvent: NSEvent?
+    override func performDrag(with event: NSEvent) { dragEvent = event }
+}
+
 @Test @MainActor func floatingCaptionOpacityButtonsClampToSupportedRange() {
     let appState = AppState()
     appState.floatingCaptionBackgroundOpacity = 0.35

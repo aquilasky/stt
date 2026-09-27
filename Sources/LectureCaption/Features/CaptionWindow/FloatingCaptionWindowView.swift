@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct FloatingCaptionWindowView: View {
@@ -12,6 +13,17 @@ struct FloatingCaptionWindowView: View {
                 // Keep text below the hover controls at every font size and panel width.
                 .padding(.top, 68)
                 .padding(.bottom, 32)
+
+            FloatingCaptionDragHandle()
+                .frame(width: 32, height: 32)
+                .overlay {
+                    Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                        .foregroundStyle(.white.opacity(0.65))
+                        .allowsHitTesting(false)
+                }
+                .help("按住此处拖动悬浮字幕")
+                .padding(20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             if isHovering {
                 controls
@@ -107,6 +119,23 @@ struct FloatingCaptionWindowView: View {
         .controlSize(.small)
         .padding(6)
         .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+}
+
+private struct FloatingCaptionDragHandle: NSViewRepresentable {
+    func makeNSView(context: Context) -> FloatingCaptionDragView {
+        FloatingCaptionDragView()
+    }
+
+    func updateNSView(_ nsView: FloatingCaptionDragView, context: Context) {}
+}
+
+/// Explicitly hand the drag to AppKit instead of relying on SwiftUI background hit testing.
+final class FloatingCaptionDragView: NSView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.performDrag(with: event)
     }
 }
 
