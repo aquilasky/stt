@@ -30,12 +30,18 @@ final class AppState {
     var captionFontSize: CGFloat = 18
     var isCaptionTimestampVisible = true
     var isDisplaySleepPreventionEnabled = false
-    var isFloatingCaptionVisible = false
+    var isFloatingCaptionVisible = false {
+        didSet {
+            guard oldValue != isFloatingCaptionVisible else { return }
+            floatingCaptionController.setVisible(isFloatingCaptionVisible, appState: self)
+        }
+    }
     var floatingCaptionDisplayMode: FloatingCaptionDisplayMode = .bilingual
     var floatingCaptionFontSize: CGFloat = 20
     var floatingCaptionBackgroundOpacity = 0.78
     var savedSessions: [SavedLectureSession] = []
 
+    @ObservationIgnored private let floatingCaptionController = FloatingCaptionWindowController()
     @ObservationIgnored private let audioCaptureController = AudioCaptureController()
     @ObservationIgnored private var silenceStartedAt: TimeInterval?
     @ObservationIgnored private var sessionGeneration = 0

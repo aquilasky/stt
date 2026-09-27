@@ -149,6 +149,30 @@ import Testing
     #expect(!behavior.contains(.moveToActiveSpace))
 }
 
+@Test @MainActor func floatingCaptionLifecycleDoesNotDependOnMainWindowViews() throws {
+    let before = Set(NSApplication.shared.windows.map(ObjectIdentifier.init))
+    let appState = AppState()
+    #expect(NSApplication.shared.windows.filter { $0 is FloatingCaptionPanel && !before.contains(ObjectIdentifier($0)) }.isEmpty)
+    #expect(!appState.isFloatingCaptionVisible)
+    appState.isFloatingCaptionVisible = true
+    defer { appState.isFloatingCaptionVisible = false }
+    let panel = try #require(NSApplication.shared.windows.first { $0 is FloatingCaptionPanel && !before.contains(ObjectIdentifier($0)) })
+    #expect(panel.isVisible)
+    #expect(!panel.isRestorable)
+    // Rebuilding WindowGroup content must neither create nor own a new panel.
+    _ = MainWindowView(appState: appState)
+    _ = MainWindowView(appState: appState)
+    appState.isFloatingCaptionVisible = false
+    #expect(!panel.isVisible)
+    #expect(panel.contentView == nil)
+    appState.isFloatingCaptionVisible = true
+    let panels = NSApplication.shared.windows.filter { $0 is FloatingCaptionPanel && !before.contains(ObjectIdentifier($0)) }
+    #expect(panels.count == 1)
+    #expect(panels.first === panel)
+    panel.close()
+    #expect(!appState.isFloatingCaptionVisible)
+}
+
 @Test @MainActor func floatingCaptionRoutesTextAndBlankAreaDragsWithoutTakingFocus() throws {
     let panel = DragRecordingPanel()
     let content = NSView(frame: NSRect(x: 0, y: 0, width: 680, height: 300))

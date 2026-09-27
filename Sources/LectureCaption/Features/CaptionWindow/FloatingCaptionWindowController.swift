@@ -13,6 +13,8 @@ final class FloatingCaptionWindowController: NSObject, NSWindowDelegate {
             show(appState: appState)
         } else {
             panel?.orderOut(nil)
+            // Release the hosted AppState when hidden; ownership must not form a cycle.
+            panel?.contentView = nil
         }
     }
 
@@ -57,6 +59,7 @@ class FloatingCaptionPanel: NSPanel {
         )
 
         isFloatingPanel = true
+        isRestorable = false
         level = .floating
         collectionBehavior = FloatingCaptionWindowBehavior.collectionBehavior
         hidesOnDeactivate = false

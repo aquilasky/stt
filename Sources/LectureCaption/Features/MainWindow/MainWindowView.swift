@@ -4,7 +4,6 @@ struct MainWindowView: View {
     @Bindable var appState: AppState
     @State private var showsConfiguration = false
     @State private var showsHistory = false
-    @State private var floatingCaptionController = FloatingCaptionWindowController()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -118,9 +117,6 @@ struct MainWindowView: View {
         }
         .sheet(isPresented: $showsHistory) {
             SessionHistoryView(appState: appState)
-        }
-        .onChange(of: appState.isFloatingCaptionVisible, initial: true) { _, isVisible in
-            floatingCaptionController.setVisible(isVisible, appState: appState)
         }
     }
 
