@@ -218,6 +218,40 @@ import Testing
     override var isFlipped: Bool { true }
 }
 
+@Test func captionResizeEdgesHaveWideHitRegionsAndClampWithoutMovingOppositeEdge() {
+    let bounds = NSRect(x: 0, y: 0, width: 680, height: 300)
+    #expect(CaptionResizeEdges.at(NSPoint(x: 12, y: 150), in: bounds) == .left)
+    #expect(CaptionResizeEdges.at(NSPoint(x: 668, y: 150), in: bounds) == .right)
+    #expect(CaptionResizeEdges.at(NSPoint(x: 340, y: 12), in: bounds) == .bottom)
+    #expect(CaptionResizeEdges.at(NSPoint(x: 340, y: 288), in: bounds) == .top)
+    #expect(CaptionResizeEdges.at(NSPoint(x: 22, y: 22), in: bounds) == [.left, .bottom])
+    #expect(CaptionResizeEdges.at(NSPoint(x: 658, y: 278), in: bounds) == [.right, .top])
+    #expect(CaptionResizeEdges.at(NSPoint(x: 40, y: 40), in: bounds).isEmpty)
+    let original = NSRect(x: 100, y: 100, width: 680, height: 300)
+    let resized = CaptionResizeEdges([.left, .bottom]).resizedFrame(original,
+        delta: NSSize(width: 1000, height: 1000), minimum: NSSize(width: 420, height: 180), maximum: NSSize(width: 1200, height: 720))
+    #expect(resized.size == NSSize(width: 420, height: 180))
+    #expect(resized.maxX == original.maxX)
+    #expect(resized.maxY == original.maxY)
+    let grown = CaptionResizeEdges([.right, .top]).resizedFrame(original,
+        delta: NSSize(width: 1000, height: 1000), minimum: NSSize(width: 420, height: 180), maximum: NSSize(width: 1200, height: 720))
+    #expect(grown.size == NSSize(width: 1200, height: 720))
+    #expect(grown.origin == original.origin)
+}
+
+@Test @MainActor func captionResizeEventSequenceDoesNotStartWindowDrag() throws {
+    let panel = DragRecordingPanel()
+    panel.setFrame(NSRect(x: 100, y: 100, width: 680, height: 300), display: false)
+    panel.contentView = FlippedCaptionTestView(frame: NSRect(x: 0, y: 0, width: 680, height: 300))
+    panel.sendEvent(try captionMouseEvent(panel: panel, point: NSPoint(x: 668, y: 150)))
+    panel.sendEvent(try captionMouseEvent(panel: panel, point: NSPoint(x: 718, y: 150), type: .leftMouseDragged))
+    #expect(panel.frame.width == 730)
+    #expect(panel.dragEvent == nil)
+    panel.sendEvent(try captionMouseEvent(panel: panel, point: NSPoint(x: 718, y: 150), type: .leftMouseUp))
+    panel.sendEvent(try captionMouseEvent(panel: panel, point: NSPoint(x: 300, y: 150)))
+    #expect(panel.dragEvent != nil)
+}
+
 @MainActor private func captionMouseEvent(panel: NSPanel, point: NSPoint, type: NSEvent.EventType = .leftMouseDown) throws -> NSEvent {
     let event = try #require(NSEvent.mouseEvent(
         with: type, location: point, modifierFlags: [],
