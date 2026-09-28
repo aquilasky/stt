@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct FloatingCaptionWindowView: View {
@@ -107,7 +108,21 @@ struct FloatingCaptionWindowView: View {
         .controlSize(.small)
         .padding(6)
         .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(FloatingCaptionControlsRegion())
     }
+}
+
+private struct FloatingCaptionControlsRegion: NSViewRepresentable {
+    func makeNSView(context: Context) -> FloatingCaptionControlsView {
+        FloatingCaptionControlsView()
+    }
+
+    func updateNSView(_ nsView: FloatingCaptionControlsView, context: Context) {}
+}
+
+/// Geometry only: SwiftUI buttons keep receiving their own mouse events.
+final class FloatingCaptionControlsView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 private struct FloatingCaptionSegmentView: View {
