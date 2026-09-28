@@ -101,6 +101,8 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
     private var hasSentFinish = false
     private let eventChannel = TranscriptEventChannel()
     private var receiveTask: Task<Void, Never>?
+    private var startTime: TimeInterval?
+    private var lastResultTime: TimeInterval?
 
     init(
         settings: AliyunRealtimeSettings,
@@ -128,6 +130,8 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
         request.setValue("LectureCaption/1.0.0", forHTTPHeaderField: "User-Agent")
 
         taskID = id
+        startTime = RecognitionDiagnostics.now
+        lastResultTime = nil
         hasSentFinish = false
         isReady = false
         do {
@@ -150,6 +154,8 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
     func send(audio: Data) async throws {
         guard isReady else { throw AliyunRealtimeProviderError.taskNotReady }
         guard !audio.isEmpty else { return }
+        let started = RecognitionDiagnostics.now
+        defer { RecognitionDiagnostics.shared.record(.audioSendMS, (RecognitionDiagnostics.now - started) * 1000) }
         try await transport.send(data: audio)
     }
 
@@ -177,13 +183,29 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
         do {
             while !Task.isCancelled {
                 let text = try await transport.receive()
+                let received = RecognitionDiagnostics.now
                 guard let event = try AliyunRealtimeProtocol.parseServerEvent(text, expectedTaskID: taskID) else {
                     continue
                 }
+                RecognitionDiagnostics.shared.record(.asrDecodeMS, (RecognitionDiagnostics.now - received) * 1000)
                 if case .ready = event {
+                    if let startTime { RecognitionDiagnostics.shared.record(.taskReadyMS, (received - startTime) * 1000) }
                     isReady = true
                 }
+                switch event {
+                case .partial, .final:
+                    if let previous = lastResultTime ?? startTime {
+                        RecognitionDiagnostics.shared.record(.asrEventGapMS, (received - previous) * 1000)
+                    }
+                    lastResultTime = received
+                default: break
+                }
                 eventChannel.yield(event)
+                if RecognitionDiagnostics.shared.isEnabled {
+                    Task { @MainActor in
+                        RecognitionDiagnostics.shared.record(.mainActorSchedulingMS, (RecognitionDiagnostics.now - received) * 1000)
+                    }
+                }
                 switch event {
                 case .finished:
                     await reset(closeTransport: true, finishStreamWith: nil)

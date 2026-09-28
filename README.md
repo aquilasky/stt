@@ -249,6 +249,10 @@ shasum -a 256 Release/LectureCaption.zip Release/LectureCaption.dmg
 
 ## 常见问题
 
+### 偶发识别延迟很大，如何定位
+
+可开启默认关闭的本地耗时诊断，查看采集交付、发送积压、ASR 返回间隔与主线程等待。Xcode 使用环境变量 `LECTURE_CAPTION_DIAGNOSTICS=1`；独立运行使用对应 Bundle ID 的本地 defaults 开关。具体命令、指标含义与限制见 [识别延迟诊断](docs/RECOGNITION_DIAGNOSTICS.md)。只记录数值，不记录音频、字幕正文或 API Key，不使用远端监控服务。
+
 ### 点击“开始”后仍显示“本地监听”
 
 这是正常的成本控制行为。应用先在本机检测输入，只有检测到足够音量后才连接阿里云。开始说话后状态应切换为“正在连接”或“正在识别”。
