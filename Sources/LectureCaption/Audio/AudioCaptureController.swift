@@ -11,6 +11,8 @@ final class AudioCaptureController: @unchecked Sendable {
     private var isDeliveryScheduled = false
 
     func startMicrophone(onOutput: @escaping OutputHandler) async throws {
+        // Resolve opt-in defaults before installing the real-time microphone callback.
+        let diagnostics = RecognitionDiagnostics.shared
         let (generation, activePipeline) = prepareStart()
         let capture = MicrophoneCapture()
         install(capture, for: generation)
@@ -21,8 +23,10 @@ final class AudioCaptureController: @unchecked Sendable {
             guard let self, self.isCurrent(generation) else { return }
             let timestamp = ProcessInfo.processInfo.systemUptime
             guard let output = try? activePipeline.process(buffer: buffer, startedAt: timestamp) else {
+                diagnostics.record(.captureConversionFailures, 1)
                 return
             }
+            diagnostics.record(.captureConversionMS, (RecognitionDiagnostics.now - timestamp) * 1000)
             self.publish(AudioCaptureUpdate(output), generation: generation, to: onOutput)
         }
 
@@ -72,13 +76,17 @@ final class AudioCaptureController: @unchecked Sendable {
         generation: Int,
         to handler: @escaping OutputHandler
     ) {
-        let shouldSchedule = lock.withLock { () -> Bool in
-            guard generationGate.accepts(generation) else { return false }
-            pendingDelivery = PendingDelivery(generation: generation, update: update, handler: handler)
-            guard !isDeliveryScheduled else { return false }
+        let (shouldSchedule, overwritten) = lock.withLock { () -> (Bool, Bool) in
+            guard generationGate.accepts(generation) else { return (false, false) }
+            let overwritten = pendingDelivery != nil
+            let scheduledAt = pendingDelivery?.publishedAt ?? RecognitionDiagnostics.now
+            pendingDelivery = PendingDelivery(generation: generation, update: update, handler: handler, publishedAt: scheduledAt)
+            guard !isDeliveryScheduled else { return (false, overwritten) }
             isDeliveryScheduled = true
-            return true
+            return (true, overwritten)
         }
+
+        if overwritten { RecognitionDiagnostics.shared.record(.captureOverwrittenBatches, 1) }
 
         guard shouldSchedule else { return }
         Task { @MainActor [weak self] in
@@ -94,6 +102,7 @@ final class AudioCaptureController: @unchecked Sendable {
                 return pendingDelivery
             }
             if let delivery {
+                RecognitionDiagnostics.shared.record(.captureDeliveryMS, (RecognitionDiagnostics.now - delivery.publishedAt) * 1000)
                 delivery.handler(delivery.update)
             }
         }
@@ -104,6 +113,7 @@ private struct PendingDelivery: @unchecked Sendable {
     let generation: Int
     let update: AudioCaptureUpdate
     let handler: AudioCaptureController.OutputHandler
+    let publishedAt: TimeInterval
 }
 
 struct AudioCaptureUpdate: Sendable {

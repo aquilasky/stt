@@ -417,7 +417,9 @@ final class AppState {
             drainProviderAudio()
         case .partial, .final:
             guard let timelineEvent = mapToSessionTimeline(event) else { return }
+            let applyStarted = RecognitionDiagnostics.now
             applyTranscriptUpdate(transcriptStabilizer.apply(timelineEvent))
+            RecognitionDiagnostics.shared.record(.transcriptApplyMS, (RecognitionDiagnostics.now - applyStarted) * 1000)
             await enqueueCommittedSegmentsForTranslation()
             if case .final = timelineEvent {
                 saveCurrentSession()
@@ -472,8 +474,10 @@ final class AppState {
 
     private func enqueueProviderAudio(_ audio: [PCM16Frame]) {
         pendingProviderAudio.append(contentsOf: audio.filter { !$0.data.isEmpty })
+        RecognitionDiagnostics.shared.record(.queuedChunks, Double(pendingProviderAudio.count))
         let maximumQueuedChunks = 250
         if pendingProviderAudio.count > maximumQueuedChunks {
+            RecognitionDiagnostics.shared.record(.droppedChunks, Double(pendingProviderAudio.count - maximumQueuedChunks))
             pendingProviderAudio.removeFirst(pendingProviderAudio.count - maximumQueuedChunks)
         }
         drainProviderAudio()
@@ -492,6 +496,9 @@ final class AppState {
                   self.providerIsReady,
                   !self.pendingProviderAudio.isEmpty {
                 let audio = self.pendingProviderAudio.removeFirst()
+                if audio.sequence >= 0 {
+                    RecognitionDiagnostics.shared.record(.queuedAudioAgeMS, max(0, RecognitionDiagnostics.now - audio.startedAt) * 1000)
+                }
                 self.beginProviderTimelineIfNeeded(audioStartedAt: audio.startedAt)
                 do {
                     try await provider.send(audio: audio.data)

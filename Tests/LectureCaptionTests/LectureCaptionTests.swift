@@ -4,6 +4,19 @@ import Foundation
 import Testing
 @testable import LectureCaption
 
+@Test func recognitionDiagnosticsRetainRareSpikesAndCumulativeCounts() {
+    var bucket = RecognitionMetricBucket()
+    #expect(bucket.mean == 0)
+    bucket.add(10)
+    bucket.add(1000)
+    bucket.add(10)
+    #expect(bucket.count == 3)
+    #expect(bucket.maximum == 1000)
+    #expect(bucket.total == 1020)
+    #expect(bucket.mean == 340)
+    #expect(Set(RecognitionMetric.allCases.map(\.rawValue)).count == RecognitionMetric.allCases.count)
+}
+
 @Test @MainActor func automaticPauseKeepsLocalMonitoringReady() {
     let appState = AppState()
 
