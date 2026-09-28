@@ -395,6 +395,24 @@ xcodebuild -project LectureCaption.xcodeproj \
 - 使用无效 Workspace ID、错误地域或无效 API Key 时，界面显示“阿里云 WebSocket 连接失败”，并提示检查 API Key、Workspace ID 和地域；不得显示 API Key。
 - 无效配置时显示清晰的连接或鉴权错误，应用不崩溃；已有字幕不丢失，麦克风本地监听仍可结束。
 
+### MAN-105 Release 隐私与独立运行（必测，1.1.3）
+
+前置条件：退出其他 LectureCaption 实例，使用当前分支本机生成的 `.build/release-privacy-validation/LectureCaption.dmg`；保留现有配置和课堂记录，不清空或迁移。测试真实识别/翻译会产生供应商用量。
+
+操作：
+
+1. 打开 DMG，确认存在 `LectureCaption.app` 和 Applications 快捷方式。将 App 拖至独立测试目录（避免覆盖已有安装），从 Finder 启动，不通过 Xcode。
+2. 打开配置及历史记录，确认使用 Release 数据而不是 Debug 数据；原有记录可正常查看。不在报告中粘贴密钥。
+3. 使用已配置的有效 Workspace/API Key，点击开始，说一段约 20 秒英语，再结束。若系统请求麦克风权限，由你授权。
+4. 确认原文、已启用时的翻译、保存记录正常；退出再启动，确认新记录存在。
+5. 对安装后的 App 执行 `bash Scripts/check-release-privacy.sh <App完整路径>` 和 `codesign --verify --deep --strict <App完整路径>`，记录退出码；检查 App 所在目录是否产生 `default.profraw`（预期没有）。
+
+输入：独立 Release 测试包、现有 Release 配置、20 秒语音。
+
+预期输出：App 独立启动，权限、识别翻译和持久化正常；Debug/Release 继续隔离；隐私和签名检查退出 0，无新增 `default.profraw`。
+
+记录结果：macOS 版本、安装路径、权限/字幕/翻译/保存结果、两项检查退出码、是否生成 profile 文件。用户确认状态：待测试。
+
 ### MAN-104 本地敏感文件防护（必测，1.1.2）
 
 前置条件：在仓库根目录打开终端；已按 `docs/LOCAL_SECURITY_CHECKS.md` 确认 Gitleaks 8.24.2。若使用当前已下载的工具，执行 `export GITLEAKS_BIN="$PWD/.build/security-tools/gitleaks"`。
@@ -410,7 +428,7 @@ xcodebuild -project LectureCaption.xcodeproj \
 
 预期输出：第一步显示 `Local security integration tests passed.`；三种扫描均显示通过并返回 0，或对真实发现明确返回非零且只显示脱敏定位信息（非零时应报告，不可视为通过）。第三步列出六个被忽略路径，第四步应用正常操作。脚本不修改当前暂存区、历史或全局 Git 配置。
 
-记录结果：Gitleaks 版本、第一步结论、三种扫描退出码、ignore 路径结果、Debug App 操作结果。用户确认状态：待测试。
+记录结果：Gitleaks 版本、第一步结论、三种扫描退出码、ignore 路径结果、Debug App 操作结果。用户确认状态：2026-09-11 用户确认通过，记录于 PR #65。
 
 ### MAN-103 阿里云 Workspace ID 端点校验（必测，1.1.1）
 
