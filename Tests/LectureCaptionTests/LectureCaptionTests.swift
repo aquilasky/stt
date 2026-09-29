@@ -189,6 +189,46 @@ import Testing
     #expect(initialAnchor != updatedAnchor)
 }
 
+@Test func captionFollowStateResetsItsInactivityDeadlineAndResumesOnDemand() {
+    let start = Date(timeIntervalSince1970: 1_000)
+    var state = CaptionFollowState()
+    #expect(state.isFollowing)
+
+    state.userScrolled(at: start)
+    #expect(!state.isFollowing)
+    #expect(state.browsingUntil == start.addingTimeInterval(12))
+    let resumedEarly = state.resumeIfDue(at: start.addingTimeInterval(11))
+    #expect(!resumedEarly)
+
+    state.userScrolled(at: start.addingTimeInterval(5))
+    #expect(state.browsingUntil == start.addingTimeInterval(17))
+    let resumedAtOldDeadline = state.resumeIfDue(at: start.addingTimeInterval(12))
+    #expect(!resumedAtOldDeadline)
+    let resumedAtNewDeadline = state.resumeIfDue(at: start.addingTimeInterval(17))
+    #expect(resumedAtNewDeadline)
+    #expect(state.isFollowing)
+
+    state.userScrolled(at: start.addingTimeInterval(20))
+    state.resume()
+    #expect(state.isFollowing)
+}
+
+@Test @MainActor func captionLiveScrollObserverOnlyRespondsToItsOwnScrollView() {
+    let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+    let documentView = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 700))
+    let observer = CaptionLiveScrollView(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
+    documentView.addSubview(observer)
+    scrollView.documentView = documentView
+    var scrollCount = 0
+    observer.onScroll = { scrollCount += 1 }
+    observer.updateObservedScrollView()
+
+    NotificationCenter.default.post(name: NSScrollView.didLiveScrollNotification, object: NSScrollView())
+    #expect(scrollCount == 0)
+    NotificationCenter.default.post(name: NSScrollView.didLiveScrollNotification, object: scrollView)
+    #expect(scrollCount == 1)
+}
+
 @Test func floatingCaptionCollectionBehaviorUsesCompatibleSpaceOptions() {
     let behavior = FloatingCaptionWindowBehavior.collectionBehavior
 
