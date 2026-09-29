@@ -100,6 +100,40 @@ import Testing
     #expect(FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments).map(\.sequence) == [0, 2, 4])
 }
 
+@Test func floatingCaptionTracksTheLatestVisibleTextTail() throws {
+    let confirmed = CaptionSegment(sequence: 0, sourceText: "An earlier sentence.", translatedText: "较早的句子。", startedAt: 0, state: .completed)
+    let current = CaptionSegment(sequence: 1, sourceText: "A growing partial", startedAt: 1, state: .provisional)
+    let segments = [confirmed, current]
+    let size = CGSize(width: 600, height: 200)
+
+    let source = try #require(FloatingCaptionScrollRequest(segments: segments, mode: .sourceOnly, fontSize: 20, viewportSize: size))
+    let bilingual = try #require(FloatingCaptionScrollRequest(segments: segments, mode: .bilingual, fontSize: 20, viewportSize: size))
+    let translated = try #require(FloatingCaptionScrollRequest(
+        segments: FloatingCaptionDisplayMode.translationOnly.visibleSegments(from: segments),
+        mode: .translationOnly, fontSize: 20, viewportSize: size
+    ))
+    #expect(source.anchor == .source(current.id))
+    #expect(bilingual.anchor == .source(current.id))
+    #expect(translated.anchor == .translation(confirmed.id))
+    #expect(source != bilingual)
+
+    var growing = current
+    growing.sourceText += " with more words."
+    let grown = try #require(FloatingCaptionScrollRequest(segments: [confirmed, growing], mode: .bilingual, fontSize: 20, viewportSize: size))
+    #expect(grown.anchor == bilingual.anchor)
+    #expect(grown != bilingual)
+
+    var translatedCurrent = growing
+    translatedCurrent.translatedText = "新增的译文。"
+    let withTranslation = try #require(FloatingCaptionScrollRequest(segments: [confirmed, translatedCurrent], mode: .bilingual, fontSize: 20, viewportSize: size))
+    let sourceWithTranslation = try #require(FloatingCaptionScrollRequest(segments: [confirmed, translatedCurrent], mode: .sourceOnly, fontSize: 20, viewportSize: size))
+    #expect(withTranslation.anchor == grown.anchor)
+    #expect(withTranslation != grown)
+    #expect(sourceWithTranslation == FloatingCaptionScrollRequest(segments: [confirmed, growing], mode: .sourceOnly, fontSize: 20, viewportSize: size))
+    #expect(withTranslation != FloatingCaptionScrollRequest(segments: [confirmed, translatedCurrent], mode: .bilingual, fontSize: 22, viewportSize: size))
+    #expect(withTranslation != FloatingCaptionScrollRequest(segments: [confirmed, translatedCurrent], mode: .bilingual, fontSize: 20, viewportSize: CGSize(width: 500, height: 200)))
+}
+
 @Test func captionFocusLevelEmphasizesConfirmedLineWithoutDimmingHistory() {
     #expect(CaptionFocusLevel.forSegment(at: 3, focusedIndex: 3, isProvisional: false) == .focused)
     #expect(CaptionFocusLevel.forSegment(at: 2, focusedIndex: 3, isProvisional: false) == .standard)
