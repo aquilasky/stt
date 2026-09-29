@@ -38,6 +38,9 @@ struct FloatingCaptionWindowView: View {
                     ScrollViewReader { scrollProxy in
                         ScrollView(.vertical) {
                             VStack(spacing: 0) {
+                                // Give short captions room to align their tail near the viewport bottom.
+                                Color.clear.frame(height: max(0, geometry.size.height - 1))
+
                                 LazyVStack(alignment: .leading, spacing: 16) {
                                     ForEach(displayedSegments) { segment in
                                         FloatingCaptionSegmentView(
@@ -50,9 +53,6 @@ struct FloatingCaptionWindowView: View {
                                     }
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
-
-                                // Allow a short final line to sit at the bottom without an unbounded content frame.
-                                Color.clear.frame(height: max(0, geometry.size.height - 1))
                             }
                         }
                         .scrollIndicators(.automatic)
@@ -79,7 +79,8 @@ struct FloatingCaptionWindowView: View {
             segments: displayedSegments,
             mode: appState.floatingCaptionDisplayMode,
             fontSize: appState.floatingCaptionFontSize,
-            viewportSize: viewportSize
+            viewportSize: viewportSize,
+            showsTimestamps: appState.isCaptionTimestampVisible
         )
     }
 
@@ -200,12 +201,14 @@ struct FloatingCaptionScrollRequest: Equatable {
     let visibleText: [String]
     let fontSize: CGFloat
     let viewportSize: CGSize
+    let showsTimestamps: Bool
 
-    init?(segments: [CaptionSegment], mode: FloatingCaptionDisplayMode, fontSize: CGFloat, viewportSize: CGSize) {
+    init?(segments: [CaptionSegment], mode: FloatingCaptionDisplayMode, fontSize: CGFloat, viewportSize: CGSize, showsTimestamps: Bool = false) {
         guard let latest = segments.last else { return nil }
         self.mode = mode
         self.fontSize = fontSize
         self.viewportSize = viewportSize
+        self.showsTimestamps = showsTimestamps
         switch mode {
         case .sourceOnly:
             anchor = .source(latest.id)

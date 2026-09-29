@@ -132,6 +132,7 @@ import Testing
     #expect(sourceWithTranslation == FloatingCaptionScrollRequest(segments: [confirmed, growing], mode: .sourceOnly, fontSize: 20, viewportSize: size))
     #expect(withTranslation != FloatingCaptionScrollRequest(segments: [confirmed, translatedCurrent], mode: .bilingual, fontSize: 22, viewportSize: size))
     #expect(withTranslation != FloatingCaptionScrollRequest(segments: [confirmed, translatedCurrent], mode: .bilingual, fontSize: 20, viewportSize: CGSize(width: 500, height: 200)))
+    #expect(withTranslation != FloatingCaptionScrollRequest(segments: [confirmed, translatedCurrent], mode: .bilingual, fontSize: 20, viewportSize: size, showsTimestamps: true))
 }
 
 @Test func captionFocusLevelEmphasizesConfirmedLineWithoutDimmingHistory() {
