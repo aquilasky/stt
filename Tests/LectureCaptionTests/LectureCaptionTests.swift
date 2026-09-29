@@ -194,22 +194,22 @@ import Testing
     var state = CaptionFollowState()
     #expect(state.isFollowing)
 
-    state.userScrolled(at: start)
+    state.userScrolled(at: start, isNearBottom: false)
     #expect(!state.isFollowing)
-    #expect(state.browsingUntil == start.addingTimeInterval(12))
-    let resumedEarly = state.resumeIfDue(at: start.addingTimeInterval(11))
+    #expect(state.browsingUntil == start.addingTimeInterval(3))
+    let resumedEarly = state.resumeIfDue(at: start.addingTimeInterval(2))
     #expect(!resumedEarly)
 
-    state.userScrolled(at: start.addingTimeInterval(5))
-    #expect(state.browsingUntil == start.addingTimeInterval(17))
-    let resumedAtOldDeadline = state.resumeIfDue(at: start.addingTimeInterval(12))
+    state.userScrolled(at: start.addingTimeInterval(1), isNearBottom: false)
+    #expect(state.browsingUntil == start.addingTimeInterval(4))
+    let resumedAtOldDeadline = state.resumeIfDue(at: start.addingTimeInterval(3))
     #expect(!resumedAtOldDeadline)
-    let resumedAtNewDeadline = state.resumeIfDue(at: start.addingTimeInterval(17))
+    let resumedAtNewDeadline = state.resumeIfDue(at: start.addingTimeInterval(4))
     #expect(resumedAtNewDeadline)
     #expect(state.isFollowing)
 
-    state.userScrolled(at: start.addingTimeInterval(20))
-    state.resume()
+    state.userScrolled(at: start.addingTimeInterval(5), isNearBottom: false)
+    state.userScrolled(at: start.addingTimeInterval(6), isNearBottom: true)
     #expect(state.isFollowing)
 }
 
@@ -220,13 +220,38 @@ import Testing
     documentView.addSubview(observer)
     scrollView.documentView = documentView
     var scrollCount = 0
-    observer.onScroll = { scrollCount += 1 }
+    var reportedNearBottom = false
+    observer.onScroll = { isNearBottom in
+        scrollCount += 1
+        reportedNearBottom = isNearBottom
+    }
     observer.updateObservedScrollView()
 
     NotificationCenter.default.post(name: NSScrollView.didLiveScrollNotification, object: NSScrollView())
     #expect(scrollCount == 0)
     NotificationCenter.default.post(name: NSScrollView.didLiveScrollNotification, object: scrollView)
     #expect(scrollCount == 1)
+    #expect(reportedNearBottom)
+}
+
+@Test @MainActor func captionScrollPositionDetectsBottomWithinTolerance() {
+    let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+    scrollView.documentView = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 700))
+    scrollView.contentView.scroll(to: NSPoint(x: 0, y: 0))
+    #expect(CaptionScrollPosition.isNearBottom(in: scrollView))
+    scrollView.contentView.scroll(to: NSPoint(x: 0, y: 300))
+    #expect(!CaptionScrollPosition.isNearBottom(in: scrollView))
+
+    let flipped = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+    flipped.documentView = FlippedCaptionDocumentView(frame: NSRect(x: 0, y: 0, width: 400, height: 700))
+    flipped.contentView.scroll(to: NSPoint(x: 0, y: 0))
+    #expect(!CaptionScrollPosition.isNearBottom(in: flipped))
+    flipped.contentView.scroll(to: NSPoint(x: 0, y: 400))
+    #expect(CaptionScrollPosition.isNearBottom(in: flipped))
+}
+
+private final class FlippedCaptionDocumentView: NSView {
+    override var isFlipped: Bool { true }
 }
 
 @Test func floatingCaptionCollectionBehaviorUsesCompatibleSpaceOptions() {

@@ -26,7 +26,7 @@ struct CaptionPreviewView: View {
             } else {
                 GeometryReader { geometry in
                     ScrollViewReader { scrollProxy in
-                        ZStack(alignment: .bottomTrailing) {
+                        ZStack(alignment: .bottom) {
                             ScrollView {
                                 LazyVStack(spacing: 20) {
                                     let displayedSegments = CaptionFocusLevel.orderedSegments(segments)
@@ -48,8 +48,8 @@ struct CaptionPreviewView: View {
                                 }
                                 .background {
                                     if followsLiveCaptions {
-                                        CaptionLiveScrollObserver {
-                                            followState.userScrolled(at: .now)
+                                        CaptionLiveScrollObserver { isNearBottom in
+                                            followState.userScrolled(at: .now, isNearBottom: isNearBottom)
                                         }
                                     }
                                 }
@@ -65,10 +65,18 @@ struct CaptionPreviewView: View {
                                     followState.resume()
                                     scrollToFocusedSegment(using: scrollProxy, animated: true)
                                 } label: {
-                                    Label("回到最新", systemImage: "arrow.down.to.line")
+                                    Image(systemName: "arrow.down")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundStyle(.primary)
+                                        .frame(width: 44, height: 44)
+                                        .background(.regularMaterial, in: Circle())
+                                        .overlay(Circle().strokeBorder(.primary.opacity(0.09)))
+                                        .shadow(color: .black.opacity(0.14), radius: 8, y: 3)
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .padding(36)
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("回到最新")
+                                .help("回到最新")
+                                .padding(.bottom, 32)
                             }
                         }
                         .onAppear {
@@ -128,13 +136,17 @@ struct CaptionPreviewView: View {
 }
 
 struct CaptionFollowState: Equatable {
-    static let inactivitySeconds: TimeInterval = 12
+    static let inactivitySeconds: TimeInterval = 3
     private(set) var browsingUntil: Date?
 
     var isFollowing: Bool { browsingUntil == nil }
 
-    mutating func userScrolled(at time: Date) {
-        browsingUntil = time.addingTimeInterval(Self.inactivitySeconds)
+    mutating func userScrolled(at time: Date, isNearBottom: Bool) {
+        if isNearBottom {
+            resume()
+        } else {
+            browsingUntil = time.addingTimeInterval(Self.inactivitySeconds)
+        }
     }
 
     mutating func resume() {
@@ -149,7 +161,7 @@ struct CaptionFollowState: Equatable {
 }
 
 private struct CaptionLiveScrollObserver: NSViewRepresentable {
-    let onScroll: () -> Void
+    let onScroll: (Bool) -> Void
 
     func makeNSView(context: Context) -> CaptionLiveScrollView {
         let view = CaptionLiveScrollView()
@@ -164,7 +176,7 @@ private struct CaptionLiveScrollObserver: NSViewRepresentable {
 }
 
 final class CaptionLiveScrollView: NSView {
-    var onScroll: (() -> Void)?
+    var onScroll: ((Bool) -> Void)?
     private weak var observedScrollView: NSScrollView?
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -190,11 +202,26 @@ final class CaptionLiveScrollView: NSView {
     }
 
     @objc private func didLiveScroll(_ notification: Notification) {
-        onScroll?()
+        guard let observedScrollView else { return }
+        onScroll?(CaptionScrollPosition.isNearBottom(in: observedScrollView))
     }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+}
+
+@MainActor enum CaptionScrollPosition {
+    static let bottomTolerance: CGFloat = 40
+
+    static func isNearBottom(in scrollView: NSScrollView) -> Bool {
+        guard let documentView = scrollView.documentView else { return true }
+        let visible = scrollView.documentVisibleRect
+        let document = documentView.bounds
+        let distance = documentView.isFlipped
+            ? document.maxY - visible.maxY
+            : visible.minY - document.minY
+        return distance <= bottomTolerance
     }
 }
 
