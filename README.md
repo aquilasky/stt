@@ -2,7 +2,7 @@
 
 LectureCaption 是一款面向课堂和网课的 macOS 实时双语字幕应用。它从默认麦克风采集音频，通过阿里云百炼实时 ASR 显示原文，并可使用 DeepSeek `deepseek-v4-flash` 生成中文译文。
 
-当前稳定版本为 `1.1.0`，支持 macOS 14 及以上版本，仅构建和测试 Apple Silicon (`arm64`)。
+当前版本为 `1.1.3`，支持 macOS 14 及以上版本，仅构建和测试 Apple Silicon (`arm64`)。
 
 ## 功能
 
@@ -204,7 +204,7 @@ swift test
 
 `swift build` 用于快速检查核心模块，不会生成带 `Info.plist`、应用图标和麦克风用途说明的完整 `.app`。需要实际使用或测试权限时，应通过 Xcode 工程构建。
 
-仓库不使用 GitHub Actions 或其他托管 CI/CD，以避免产生托管服务费用。提交前应在本机执行空白检查、`swift test` 与 arm64 Xcode App 构建。
+公开仓库使用标准 GitHub 托管 macOS runner 执行测试与构建；工作流拒绝在私有仓库运行，不使用 larger runner、缓存/产物上传或自动发布。提交前仍须在本机执行空白检查、`swift test` 与 arm64 Xcode App 构建。
 
 敏感文件检查使用固定版本的本地 Gitleaks，运行 `bash Scripts/check-secrets.sh staged`、`worktree` 和 `history` 三种模式。安装与扫描范围见 [本地敏感文件检查](docs/LOCAL_SECURITY_CHECKS.md)。
 

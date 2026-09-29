@@ -1,0 +1,35 @@
+name: macOS CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: ${{ !github.event.repository.private }}
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check whitespace
+        run: git show --format= --check HEAD
+      - name: Run SwiftPM tests
+        run: swift test
+      - name: Build arm64 Debug app
+        run: >-
+          xcodebuild -quiet -project LectureCaption.xcodeproj
+          -scheme LectureCaption -configuration Debug
+          -sdk macosx -arch arm64 -derivedDataPath .build/ci-debug build
