@@ -37,23 +37,18 @@ struct FloatingCaptionWindowView: View {
                 GeometryReader { geometry in
                     ScrollViewReader { scrollProxy in
                         ScrollView(.vertical) {
-                            VStack(spacing: 0) {
-                                // Give short captions room to align their tail near the viewport bottom.
-                                Color.clear.frame(height: max(0, geometry.size.height - 1))
-
-                                LazyVStack(alignment: .leading, spacing: 16) {
-                                    ForEach(displayedSegments) { segment in
-                                        FloatingCaptionSegmentView(
-                                            segment: segment,
-                                            mode: appState.floatingCaptionDisplayMode,
-                                            fontSize: appState.floatingCaptionFontSize,
-                                            sessionStartedAt: appState.activeSession?.startedAt,
-                                            showsTimestamps: appState.isCaptionTimestampVisible
-                                        )
-                                    }
+                            LazyVStack(alignment: .leading, spacing: 16) {
+                                ForEach(displayedSegments) { segment in
+                                    FloatingCaptionSegmentView(
+                                        segment: segment,
+                                        mode: appState.floatingCaptionDisplayMode,
+                                        fontSize: appState.floatingCaptionFontSize,
+                                        sessionStartedAt: appState.activeSession?.startedAt,
+                                        showsTimestamps: appState.isCaptionTimestampVisible
+                                    )
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .scrollIndicators(.automatic)
                         .onAppear {
@@ -85,7 +80,7 @@ struct FloatingCaptionWindowView: View {
     }
 
     private var captionAlignment: Alignment {
-        displayedSegments.isEmpty ? .center : .bottomLeading
+        displayedSegments.isEmpty ? .center : .topLeading
     }
 
     private var displayedSegments: [CaptionSegment] {
