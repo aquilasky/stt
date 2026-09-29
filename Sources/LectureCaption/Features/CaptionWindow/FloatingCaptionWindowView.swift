@@ -34,27 +34,53 @@ struct FloatingCaptionWindowView: View {
                     .font(.system(size: appState.floatingCaptionFontSize, weight: .medium))
                     .foregroundStyle(.white.opacity(0.72))
             } else {
-                ScrollView(.vertical) {
-                    LazyVStack(alignment: .leading, spacing: 16) {
-                        ForEach(displayedSegments) { segment in
-                            FloatingCaptionSegmentView(
-                                segment: segment,
-                                mode: appState.floatingCaptionDisplayMode,
-                                fontSize: appState.floatingCaptionFontSize,
-                                sessionStartedAt: appState.activeSession?.startedAt,
-                                showsTimestamps: appState.isCaptionTimestampVisible
-                            )
+                GeometryReader { geometry in
+                    ScrollViewReader { scrollProxy in
+                        ScrollView(.vertical) {
+                            LazyVStack(alignment: .leading, spacing: 16) {
+                                ForEach(displayedSegments) { segment in
+                                    FloatingCaptionSegmentView(
+                                        segment: segment,
+                                        mode: appState.floatingCaptionDisplayMode,
+                                        fontSize: appState.floatingCaptionFontSize,
+                                        sessionStartedAt: appState.activeSession?.startedAt,
+                                        showsTimestamps: appState.isCaptionTimestampVisible
+                                    )
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .scrollIndicators(.automatic)
+                        .onAppear {
+                            scrollToLatest(using: scrollProxy, viewportSize: geometry.size)
+                        }
+                        .onChange(of: scrollRequest(viewportSize: geometry.size)) { _, request in
+                            guard let request else { return }
+                            scrollProxy.scrollTo(request.anchor, anchor: .bottom)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .scrollIndicators(.automatic)
             }
         }
     }
 
+    private func scrollToLatest(using scrollProxy: ScrollViewProxy, viewportSize: CGSize) {
+        guard let request = scrollRequest(viewportSize: viewportSize) else { return }
+        scrollProxy.scrollTo(request.anchor, anchor: .bottom)
+    }
+
+    private func scrollRequest(viewportSize: CGSize) -> FloatingCaptionScrollRequest? {
+        FloatingCaptionScrollRequest(
+            segments: displayedSegments,
+            mode: appState.floatingCaptionDisplayMode,
+            fontSize: appState.floatingCaptionFontSize,
+            viewportSize: viewportSize,
+            showsTimestamps: appState.isCaptionTimestampVisible
+        )
+    }
+
     private var captionAlignment: Alignment {
-        displayedSegments.isEmpty ? .center : .bottomLeading
+        displayedSegments.isEmpty ? .center : .topLeading
     }
 
     private var displayedSegments: [CaptionSegment] {
@@ -144,6 +170,7 @@ private struct FloatingCaptionSegmentView: View {
                     .font(.system(size: fontSize, weight: .semibold))
                     .foregroundStyle(segment.state == .provisional ? .white.opacity(0.58) : .white)
                     .fixedSize(horizontal: false, vertical: true)
+                Color.clear.frame(height: 1).id(FloatingCaptionTextAnchor.source(segment.id))
             }
 
             if mode != .sourceOnly, let translation = segment.translatedText {
@@ -151,8 +178,42 @@ private struct FloatingCaptionSegmentView: View {
                     .font(.system(size: max(13, fontSize - 3), weight: .medium))
                     .foregroundStyle(.white.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
+                Color.clear.frame(height: 1).id(FloatingCaptionTextAnchor.translation(segment.id))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+enum FloatingCaptionTextAnchor: Hashable {
+    case source(UUID)
+    case translation(UUID)
+}
+
+struct FloatingCaptionScrollRequest: Equatable {
+    let anchor: FloatingCaptionTextAnchor
+    let mode: FloatingCaptionDisplayMode
+    let visibleText: [String]
+    let fontSize: CGFloat
+    let viewportSize: CGSize
+    let showsTimestamps: Bool
+
+    init?(segments: [CaptionSegment], mode: FloatingCaptionDisplayMode, fontSize: CGFloat, viewportSize: CGSize, showsTimestamps: Bool = false) {
+        guard let latest = segments.last else { return nil }
+        self.mode = mode
+        self.fontSize = fontSize
+        self.viewportSize = viewportSize
+        self.showsTimestamps = showsTimestamps
+        switch mode {
+        case .sourceOnly:
+            anchor = .source(latest.id)
+            visibleText = segments.map(\.sourceText)
+        case .bilingual:
+            anchor = .source(latest.id)
+            visibleText = segments.flatMap { [$0.sourceText, $0.translatedText ?? ""] }
+        case .translationOnly:
+            anchor = .translation(latest.id)
+            visibleText = segments.map { $0.translatedText ?? "" }
+        }
     }
 }
