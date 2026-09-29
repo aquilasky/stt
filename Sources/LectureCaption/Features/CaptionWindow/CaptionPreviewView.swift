@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct CaptionPreviewView: View {
@@ -5,7 +6,9 @@ struct CaptionPreviewView: View {
     let fontSize: CGFloat
     let sessionStartedAt: Date?
     let showsTimestamps: Bool
+    var followsLiveCaptions = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var followState = CaptionFollowState()
 
     private var focusAnimation: Animation? {
         reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86)
@@ -23,42 +26,90 @@ struct CaptionPreviewView: View {
             } else {
                 GeometryReader { geometry in
                     ScrollViewReader { scrollProxy in
-                        ScrollView {
-                            LazyVStack(spacing: 20) {
-                                let displayedSegments = CaptionFocusLevel.orderedSegments(segments)
-                                let focusedIndex = displayedSegments.lastIndex { $0.state != .provisional }
-                                ForEach(Array(displayedSegments.enumerated()), id: \.element.id) { index, segment in
-                                    CaptionPreviewSegmentView(
-                                        segment: segment,
-                                        fontSize: fontSize,
-                                        sessionStartedAt: sessionStartedAt,
-                                        showsTimestamps: showsTimestamps,
-                                        focusLevel: CaptionFocusLevel.forSegment(
-                                            at: index,
-                                            focusedIndex: focusedIndex,
-                                            isProvisional: segment.state == .provisional
+                        ZStack(alignment: .bottom) {
+                            ScrollView {
+                                LazyVStack(spacing: 20) {
+                                    let displayedSegments = CaptionFocusLevel.orderedSegments(segments)
+                                    let focusedIndex = displayedSegments.lastIndex { $0.state != .provisional }
+                                    ForEach(Array(displayedSegments.enumerated()), id: \.element.id) { index, segment in
+                                        CaptionPreviewSegmentView(
+                                            segment: segment,
+                                            fontSize: fontSize,
+                                            sessionStartedAt: sessionStartedAt,
+                                            showsTimestamps: showsTimestamps,
+                                            focusLevel: CaptionFocusLevel.forSegment(
+                                                at: index,
+                                                focusedIndex: focusedIndex,
+                                                isProvisional: segment.state == .provisional
+                                            )
                                         )
-                                    )
-                                    .id(segment.id)
+                                        .id(segment.id)
+                                    }
                                 }
+                                .background {
+                                    if followsLiveCaptions {
+                                        CaptionLiveScrollObserver { isNearBottom in
+                                            followState.userScrolled(at: .now, isNearBottom: isNearBottom)
+                                        }
+                                    }
+                                }
+                                // Keeps the active line near the visual center even at the start or end of a session.
+                                .padding(.top, max(72, geometry.size.height * 0.5))
+                                .padding(.bottom, max(72, geometry.size.height * 0.5))
+                                .padding(.horizontal, 48)
                             }
-                            // Keeps the active line near the visual center even at the start or end of a session.
-                            .padding(.top, max(72, geometry.size.height * 0.5))
-                            .padding(.bottom, max(72, geometry.size.height * 0.5))
-                            .padding(.horizontal, 48)
+                            .padding(24)
+
+                            if followsLiveCaptions && !followState.isFollowing {
+                                Button {
+                                    followState.resume()
+                                    scrollToFocusedSegment(using: scrollProxy, animated: true)
+                                } label: {
+                                    Image(systemName: "arrow.down")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundStyle(.primary)
+                                        .frame(width: 44, height: 44)
+                                        .background(.regularMaterial, in: Circle())
+                                        .overlay(Circle().strokeBorder(.primary.opacity(0.09)))
+                                        .shadow(color: .black.opacity(0.14), radius: 8, y: 3)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("回到最新")
+                                .help("回到最新")
+                                .padding(.bottom, 32)
+                            }
                         }
-                        .padding(24)
                         .onAppear {
                             scrollToFocusedSegment(using: scrollProxy, animated: false)
                         }
                         .onChange(of: focusAnchor(for: geometry.size)) {
-                            scrollToFocusedSegment(using: scrollProxy, animated: true)
+                            if followState.isFollowing {
+                                scrollToFocusedSegment(using: scrollProxy, animated: true)
+                            }
+                        }
+                        .onChange(of: sessionStartedAt) {
+                            followState.resume()
+                            scrollToFocusedSegment(using: scrollProxy, animated: false)
+                        }
+                        .task(id: followState.browsingUntil) {
+                            guard followState.browsingUntil != nil else { return }
+                            do {
+                                try await Task.sleep(for: .seconds(CaptionFollowState.inactivitySeconds))
+                            } catch {
+                                return
+                            }
+                            if followState.resumeIfDue(at: .now) {
+                                scrollToFocusedSegment(using: scrollProxy, animated: true)
+                            }
                         }
                     }
                 }
             }
         }
         .background(.regularMaterial)
+        .onChange(of: segments.isEmpty) { _, isEmpty in
+            if isEmpty { followState.resume() }
+        }
     }
 
     private func scrollToFocusedSegment(using scrollProxy: ScrollViewProxy, animated: Bool) {
@@ -81,6 +132,96 @@ struct CaptionPreviewView: View {
 
     private func focusAnchor(for viewportSize: CGSize) -> CaptionFocusAnchor {
         CaptionFocusAnchor(segments: segments, fontSize: fontSize, viewportSize: viewportSize)
+    }
+}
+
+struct CaptionFollowState: Equatable {
+    static let inactivitySeconds: TimeInterval = 3
+    private(set) var browsingUntil: Date?
+
+    var isFollowing: Bool { browsingUntil == nil }
+
+    mutating func userScrolled(at time: Date, isNearBottom: Bool) {
+        if isNearBottom {
+            resume()
+        } else {
+            browsingUntil = time.addingTimeInterval(Self.inactivitySeconds)
+        }
+    }
+
+    mutating func resume() {
+        browsingUntil = nil
+    }
+
+    mutating func resumeIfDue(at time: Date) -> Bool {
+        guard let browsingUntil, time >= browsingUntil else { return false }
+        resume()
+        return true
+    }
+}
+
+private struct CaptionLiveScrollObserver: NSViewRepresentable {
+    let onScroll: (Bool) -> Void
+
+    func makeNSView(context: Context) -> CaptionLiveScrollView {
+        let view = CaptionLiveScrollView()
+        view.onScroll = onScroll
+        return view
+    }
+
+    func updateNSView(_ view: CaptionLiveScrollView, context: Context) {
+        view.onScroll = onScroll
+        view.updateObservedScrollView()
+    }
+}
+
+final class CaptionLiveScrollView: NSView {
+    var onScroll: ((Bool) -> Void)?
+    private weak var observedScrollView: NSScrollView?
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        updateObservedScrollView()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateObservedScrollView()
+    }
+
+    func updateObservedScrollView() {
+        let scrollView = enclosingScrollView
+        guard scrollView !== observedScrollView else { return }
+        NotificationCenter.default.removeObserver(self, name: NSScrollView.didLiveScrollNotification, object: observedScrollView)
+        observedScrollView = scrollView
+        if let scrollView {
+            NotificationCenter.default.addObserver(self, selector: #selector(didLiveScroll), name: NSScrollView.didLiveScrollNotification, object: scrollView)
+        }
+    }
+
+    @objc private func didLiveScroll(_ notification: Notification) {
+        guard let observedScrollView else { return }
+        onScroll?(CaptionScrollPosition.isNearBottom(in: observedScrollView))
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+}
+
+@MainActor enum CaptionScrollPosition {
+    static let bottomTolerance: CGFloat = 40
+
+    static func isNearBottom(in scrollView: NSScrollView) -> Bool {
+        guard let documentView = scrollView.documentView else { return true }
+        let visible = scrollView.documentVisibleRect
+        let document = documentView.bounds
+        let distance = documentView.isFlipped
+            ? document.maxY - visible.maxY
+            : visible.minY - document.minY
+        return distance <= bottomTolerance
     }
 }
 

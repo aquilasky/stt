@@ -121,7 +121,8 @@ private struct SavedSessionDetailView: View {
                 segments: record.segments,
                 fontSize: fontSize,
                 sessionStartedAt: record.session.startedAt,
-                showsTimestamps: showsTimestamps
+                showsTimestamps: showsTimestamps,
+                followsLiveCaptions: false
             )
         }
             .navigationTitle(LocalSessionRecordName.string(for: record))
