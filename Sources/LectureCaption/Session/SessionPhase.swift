@@ -9,6 +9,14 @@ enum SessionPhase: Equatable, Sendable {
     case manuallyPaused
     case completed
 
+    var primaryAction: SessionPrimaryAction {
+        switch self {
+        case .idle, .completed: .start
+        case .manuallyPaused: .resume
+        case .monitoringLocal, .activatingProvider, .recognizing, .autoPaused: .unavailable
+        }
+    }
+
     var title: String {
         switch self {
         case .idle: "准备就绪"
@@ -40,5 +48,33 @@ enum SessionPhase: Equatable, Sendable {
         case .completed: .secondary
         default: .primary
         }
+    }
+}
+
+enum SessionPrimaryAction: Equatable, Sendable {
+    case start
+    case resume
+    case unavailable
+
+    var title: String {
+        self == .resume ? "继续" : "开始"
+    }
+
+    var symbolName: String {
+        self == .resume ? "playpause.fill" : "play.fill"
+    }
+
+    var helpText: String {
+        switch self {
+        case .start: "开始采集"
+        case .resume: "继续采集"
+        case .unavailable: "会话进行中"
+        }
+    }
+
+    var isEnabled: Bool { self != .unavailable }
+
+    func canTrigger(startInFlight: Bool) -> Bool {
+        isEnabled && !(self == .start && startInFlight)
     }
 }

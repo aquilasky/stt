@@ -4,6 +4,7 @@ struct MainWindowView: View {
     @Bindable var appState: AppState
     @State private var showsConfiguration = false
     @State private var showsHistory = false
+    @State private var startInFlight = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,21 +36,31 @@ struct MainWindowView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
-                    Task { await appState.startSession() }
+                    let action = appState.phase.primaryAction
+                    guard action.canTrigger(startInFlight: startInFlight) else { return }
+                    switch action {
+                    case .start:
+                        startInFlight = true
+                        Task {
+                            await appState.startSession()
+                            startInFlight = false
+                        }
+                    case .resume:
+                        appState.resumeSession()
+                    case .unavailable:
+                        break
+                    }
                 } label: {
-                    Label("开始", systemImage: "play.fill")
+                    Label(appState.phase.primaryAction.title, systemImage: appState.phase.primaryAction.symbolName)
                 }
-                .disabled(!appState.canStart)
+                .disabled(!appState.phase.primaryAction.canTrigger(startInFlight: startInFlight))
+                .help(appState.phase.primaryAction.helpText)
+                .accessibilityLabel(appState.phase.primaryAction.title)
 
                 Button(action: appState.pauseSession) {
                     Label("暂停", systemImage: "pause.fill")
                 }
                 .disabled(!appState.canPause)
-
-                Button(action: appState.resumeSession) {
-                    Label("继续", systemImage: "playpause.fill")
-                }
-                .disabled(appState.phase != .manuallyPaused)
 
                 Button {
                     Task { await appState.stopSession() }
