@@ -4,6 +4,44 @@ import Foundation
 import Testing
 @testable import LectureCaption
 
+@Test func sessionPrimaryActionMatchesEveryPhase() {
+    for phase in [SessionPhase.idle, .completed] {
+        #expect(phase.primaryAction == .start)
+        #expect(phase.primaryAction.isEnabled)
+        #expect(phase.primaryAction.title == "开始")
+        #expect(phase.primaryAction.symbolName == "play.fill")
+        #expect(phase.primaryAction.helpText == "开始采集")
+    }
+
+    #expect(SessionPhase.manuallyPaused.primaryAction == .resume)
+    #expect(SessionPhase.manuallyPaused.primaryAction.isEnabled)
+    #expect(SessionPhase.manuallyPaused.primaryAction.title == "继续")
+    #expect(SessionPhase.manuallyPaused.primaryAction.symbolName == "playpause.fill")
+    #expect(SessionPhase.manuallyPaused.primaryAction.helpText == "继续采集")
+
+    for phase in [SessionPhase.monitoringLocal, .activatingProvider, .recognizing, .autoPaused] {
+        #expect(phase.primaryAction == .unavailable)
+        #expect(!phase.primaryAction.isEnabled)
+    }
+
+    #expect(SessionPrimaryAction.start.canTrigger(startInFlight: false))
+    #expect(!SessionPrimaryAction.start.canTrigger(startInFlight: true))
+    #expect(SessionPrimaryAction.resume.canTrigger(startInFlight: true))
+    #expect(!SessionPrimaryAction.unavailable.canTrigger(startInFlight: false))
+}
+
+@Test @MainActor func repeatedManualResumeDoesNotBypassPhaseGuard() {
+    let appState = AppState()
+    appState.phase = .monitoringLocal
+    appState.pauseSession()
+    #expect(appState.phase == .manuallyPaused)
+
+    appState.resumeSession()
+    #expect(appState.phase == .monitoringLocal)
+    appState.resumeSession()
+    #expect(appState.phase == .monitoringLocal)
+}
+
 @Test func recognitionDiagnosticsRetainRareSpikesAndCumulativeCounts() {
     var bucket = RecognitionMetricBucket()
     #expect(bucket.mean == 0)
