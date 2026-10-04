@@ -40,6 +40,10 @@ final class AppState {
     var floatingCaptionFontSize: CGFloat = 20
     var floatingCaptionBackgroundOpacity = 0.78
     var savedSessions: [SavedLectureSession] = []
+    var apiUsageRecords: [APIUsageRecord] = []
+    var apiUsageError: String?
+    @ObservationIgnored let apiUsageStore: APIUsageStore
+    @ObservationIgnored private var apiUsageEventsTask: Task<Void, Never>?
 
     @ObservationIgnored private let floatingCaptionController = FloatingCaptionWindowController()
     @ObservationIgnored private let audioCaptureController = AudioCaptureController()
@@ -70,7 +74,8 @@ final class AppState {
     @ObservationIgnored private var continuedSessionMinimumTimestamp: TimeInterval = 0
     @ObservationIgnored private var continuedSourceSessionIDs: Set<UUID> = []
 
-    init(sessionHistoryStore: LocalSessionHistoryStore = .default) {
+    init(sessionHistoryStore: LocalSessionHistoryStore = .default, apiUsageStore: APIUsageStore = APIUsageStore()) {
+        self.apiUsageStore = apiUsageStore
         self.sessionHistoryStore = sessionHistoryStore
         sessionHistoryWriter = LocalSessionHistoryWriter(store: sessionHistoryStore)
         do {
@@ -79,6 +84,17 @@ final class AppState {
             captureError = "无法读取本地课堂记录。\n\(error.localizedDescription)"
         }
         startSessionHistoryEventHandling()
+        let events = apiUsageStore.events
+        apiUsageEventsTask = Task { [weak self] in
+            for await event in events {
+                guard let self else { return }
+                switch event {
+                case let .updated(records): self.apiUsageRecords = records
+                case let .failed(message): self.apiUsageError = message
+                }
+            }
+        }
+        Task { await apiUsageStore.loadAndPublish() }
     }
 
     var canStart: Bool {
@@ -204,7 +220,8 @@ final class AppState {
         await translationQueue?.cancelAll()
         translationEventsTask?.cancel()
         let translationQueue = TranslationQueue(
-            provider: DeepSeekTranslationProvider.localCredentialsBacked()
+            provider: DeepSeekTranslationProvider.localCredentialsBacked(),
+            usageStore: apiUsageStore, sessionID: activeSession?.id
         )
         self.translationQueue = translationQueue
         startTranslationEventHandling(queue: translationQueue, generation: generation)
@@ -362,7 +379,8 @@ final class AppState {
         UserDefaults.standard.set(aliyunRegion.rawValue, forKey: "aliyun-region")
 
         let provider = AliyunRealtimeSTTProvider.keychainBacked(
-            settings: AliyunRealtimeSettings(workspaceID: workspaceID, region: aliyunRegion)
+            settings: AliyunRealtimeSettings(workspaceID: workspaceID, region: aliyunRegion),
+            usageStore: apiUsageStore, sessionID: activeSession?.id
         )
         self.provider = provider
         transcriptStabilizer.beginProviderTask()

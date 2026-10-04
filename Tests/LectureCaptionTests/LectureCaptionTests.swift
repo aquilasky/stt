@@ -1119,7 +1119,7 @@ private final class FlippedCaptionDocumentView: NSView {
         targetLanguage: .simplifiedChinese
     ))
 
-    #expect(translation == "学习率控制每一步优化的步长。")
+    #expect(translation.text == "学习率控制每一步优化的步长。")
     let request = try #require(await transport.requests.first)
     #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer deepseek-test-key")
     let body = try #require(request.httpBody)
@@ -1158,7 +1158,7 @@ private final class FlippedCaptionDocumentView: NSView {
         targetLanguage: .simplifiedChinese
     ))
 
-    #expect(translation == "课程上下文未随请求失败。")
+    #expect(translation.text == "课程上下文未随请求失败。")
     let requests = await transport.requests
     #expect(requests.count == 2)
     let firstMessages = try #require(messages(from: requests[0]))
@@ -1690,10 +1690,10 @@ private actor FakeTranslationProvider: TranslationProvider {
         self.results = results
     }
 
-    func translate(_ request: TranslationRequest) async throws -> String {
+    func translate(_ request: TranslationRequest) async throws -> TranslationResult {
         receivedSegmentIDs.append(request.segmentID)
         switch results.removeFirst() {
-        case let .success(text): return text
+        case let .success(text): return TranslationResult(text: text)
         case .failure: throw DeepSeekTranslationError.requestFailed(statusCode: 500)
         }
     }

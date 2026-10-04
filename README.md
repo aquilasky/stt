@@ -124,6 +124,12 @@ Workspace ID、API Key 和地域必须属于同一个百炼业务空间。应用
 
 ## 本地数据与隐私
 
+在“API 配置”中向下滚动可查看“API 用量”，支持今天、最近 7 天、最近 30 天和全部。语音按实际成功发送的音频秒数统计，每 30 秒及任务结束更新；翻译使用成功响应的 Token 明细。跨本地日期的语音分桶保存，任务数去重。
+
+费用为独立的 CNY/USD 估算，价格快照核实于 2026-10-05；每条记录保留当时单价，更新应用不会重新定价旧记录。DeepSeek 旧模型名称按当前 Flash 价格，考虑 UTC 峰谷、周末和内置的 2026 中国节假日；未知模型或日历未覆盖的年份显示无法估算。最终费用以供应商账单为准，免费额度、优惠、税费、舍入和失败/取消请求费用不计入本地估算。[阿里云价格](https://help.aliyun.com/zh/model-studio/model-pricing)、[DeepSeek 价格](https://api-docs.deepseek.com/quick_start/pricing/)。
+
+统计仅从此版本的新请求开始，旧课堂不回填。用量写入错误单独显示在 API 配置中，不阻断字幕；异常退出可能损失最近 30 秒尚未提交的语音快照。无效 APIUsage.json 原样保留并报告完整路径，需手动检查后重启；不自动修复。
+
 客户端直接连接阿里云和 DeepSeek，不经过项目自有服务器：
 
 - 检测到输入后，麦克风 PCM 音频发送至阿里云实时 ASR。
@@ -138,7 +144,8 @@ Release 数据目录：
 ```text
 ~/Library/Application Support/LectureCaption/
 ├── LocalCredentials.json
-└── Sessions.json
+├── Sessions.json
+└── APIUsage.json
 ```
 
 Debug 数据目录：
@@ -146,7 +153,8 @@ Debug 数据目录：
 ```text
 ~/Library/Application Support/LectureCaption-Debug/
 ├── LocalCredentials.json
-└── Sessions.json
+├── Sessions.json
+└── APIUsage.json
 ```
 
 两套目录互不读取。如果 `Sessions.json` 格式无效，应用会报告文件完整路径，并保留原文件；不会自动迁移、重命名、隔离、删除或替换它。
@@ -305,7 +313,7 @@ shasum -a 256 Release/LectureCaption.zip Release/LectureCaption.dmg
 - DeepSeek 当前只翻译 final 原文；partial 流式低延迟翻译是 `1.2.0` 计划的唯一 feature。
 - 支持 TXT/JSON 导出，但不支持 Markdown 导出或历史记录编辑。
 - 阿里云端点校验、本地敏感文件防护和 Release 隐私清理安排在 `1.1.1`～`1.1.3`，并优先于后续界面改进。
-- 当前开发分支已包含悬浮字幕下边界追踪、主界面智能跟随和动态开始/继续入口；课程与 API 配置分离正在 `1.1.7` 验收，API 用量统计安排在 `1.1.8`。正式发布功能以对应 Release 为准。
+- 当前开发分支已包含悬浮字幕下边界追踪、主界面智能跟随、动态开始/继续入口及课程与 API 配置分离；本地 API 用量与估算费用正在 `1.1.8` 验收。正式发布功能以对应 Release 为准。
 - 历史发布产物可能包含 LLVM coverage/profile 字符串或开发机绝对源码路径；静态检查未发现真实凭据，后续产物由 `1.1.3` 增加强制检查，旧 Release 不重写。
 - 在持续、低音量且稳定的输入下，本地活动检测可能误触发自动待机，详见 [Issue #53](https://github.com/aquilasky/stt/issues/53)。
 - 应用未经过 Apple 公证，也没有自动更新机制。

@@ -74,6 +74,7 @@ struct APIConfigurationView: View {
                 Section("DeepSeek 翻译") {
                     SecureField("API Key（留空则仅显示原文）", text: $appState.deepSeekAPIKey)
                 }
+                APIUsageView(appState: appState)
             }
         }
     }
