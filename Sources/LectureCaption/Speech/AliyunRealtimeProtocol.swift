@@ -6,7 +6,7 @@ struct AliyunRealtimeEndpoint: Sendable, Equatable {
 }
 
 struct AliyunRealtimeSettings: Sendable, Equatable {
-    enum Region: String, Sendable, CaseIterable {
+    enum Region: String, Codable, Sendable, CaseIterable {
         case singapore
         case beijing
 

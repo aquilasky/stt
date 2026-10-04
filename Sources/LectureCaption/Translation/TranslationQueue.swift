@@ -11,9 +11,13 @@ actor TranslationQueue {
     private var pending: [TranslationRequest] = []
     private var worker: Task<Void, Never>?
     private var generation = 0
+    private let usageStore: APIUsageStore?
+    private let sessionID: UUID?
 
-    init(provider: any TranslationProvider) {
+    init(provider: any TranslationProvider, usageStore: APIUsageStore? = nil, sessionID: UUID? = nil) {
         self.provider = provider
+        self.usageStore = usageStore
+        self.sessionID = sessionID
     }
 
     nonisolated func events() -> AsyncStream<TranslationQueueEvent> {
@@ -47,7 +51,11 @@ actor TranslationQueue {
             do {
                 let translation = try await provider.translate(request)
                 guard !Task.isCancelled, generation == self.generation else { return }
-                eventChannel.yield(.translated(segmentID: request.segmentID, text: translation))
+                eventChannel.yield(.translated(segmentID: request.segmentID, text: translation.text))
+                if let usage = translation.usage {
+                    usageStore?.submit(.translation(usage, sessionID: sessionID))
+                }
+                if let error = translation.usageError { usageStore?.report(error) }
             } catch {
                 guard !Task.isCancelled, generation == self.generation else { return }
                 eventChannel.yield(.failed(segmentID: request.segmentID))
