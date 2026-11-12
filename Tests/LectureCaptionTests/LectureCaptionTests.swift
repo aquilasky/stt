@@ -1573,6 +1573,71 @@ private func makeExportRecord(courseName: String = "Machine Learning") -> SavedL
     return SavedLectureSession(session: session, segments: [second, first])
 }
 
+@Test func manualListeningThresholdDetectsQuietAudioDespiteLearnedNoiseFloor() {
+    let configuration = LocalActivityConfiguration(activationHold: 0.04, releaseHold: 0.04)
+    var automatic = LocalActivityDetector(configuration: configuration, initialNoiseFloorDBFS: -35)
+    var manual = LocalActivityDetector(configuration: configuration, initialNoiseFloorDBFS: -35,
+        manualThresholdDBFS: -55)
+    let quietSpeech = PCM16Frame(sequence: 0, data: pcm16Data(sampleCount: 320, value: 100),
+        sampleRate: 16_000, startedAt: 0)
+    for _ in 0..<200 {
+        _ = automatic.process(quietSpeech)
+        _ = manual.process(quietSpeech)
+    }
+    #expect(!automatic.isActive)
+    #expect(manual.isActive)
+}
+
+@Test func manualListeningThresholdRetainsHoldAndThreeDBHysteresis() {
+    var detector = LocalActivityDetector(
+        configuration: LocalActivityConfiguration(activationHold: 0.04, releaseHold: 0.04),
+        manualThresholdDBFS: -52)
+    func frame(_ value: Int16) -> PCM16Frame {
+        PCM16Frame(sequence: 0, data: pcm16Data(sampleCount: 320, value: value), sampleRate: 16_000, startedAt: 0)
+    }
+    #expect(detector.process(frame(100)).event == .none)
+    #expect(detector.process(frame(100)).event == .started)
+    for _ in 0..<100 { #expect(detector.process(frame(60)).isActive) }
+    #expect(detector.process(frame(20)).event == .none)
+    #expect(detector.process(frame(20)).event == .stopped)
+}
+
+@Test func listeningThresholdUpdatesWithoutReplacingAudioPipeline() throws {
+    let pipeline = AudioPipeline(activityConfiguration: LocalActivityConfiguration(activationHold: 0.04, releaseHold: 0.04))
+    _ = try pipeline.process(buffer: pcmBuffer(sampleCount: 320, value: 100), startedAt: 0)
+    pipeline.setManualThreshold(-55)
+    _ = try pipeline.process(buffer: pcmBuffer(sampleCount: 320, value: 100), startedAt: 0.02)
+    let activeOutput = try pipeline.process(buffer: pcmBuffer(sampleCount: 320, value: 100), startedAt: 0.04)
+    let active = try #require(activeOutput)
+    #expect(active.isInputActive)
+    #expect(active.preRollData?.count == 1920)
+    pipeline.setManualThreshold(nil)
+    _ = try pipeline.process(buffer: pcmBuffer(sampleCount: 320, value: 0), startedAt: 0.06)
+    let inactiveOutput = try pipeline.process(buffer: pcmBuffer(sampleCount: 320, value: 0), startedAt: 0.08)
+    let inactive = try #require(inactiveOutput)
+    #expect(!inactive.isInputActive)
+}
+
+@MainActor @Test func listeningThresholdPreferencesPersistInIsolatedDomain() throws {
+    let domain = "listening-test-\(UUID())"
+    let preferences = try #require(UserDefaults(suiteName: domain))
+    defer { preferences.removePersistentDomain(forName: domain) }
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(domain)
+    let history = LocalSessionHistoryStore(fileURL: directory.appendingPathComponent("Sessions.json"))
+    let store = APIUsageStore(fileURL: directory.appendingPathComponent("APIUsage.json"))
+    let state = AppState(sessionHistoryStore: history, apiUsageStore: store, listeningPreferences: preferences)
+    #expect(!state.usesManualListeningThreshold)
+    #expect(state.listeningThresholdDBFS == -45)
+    state.listeningThresholdDBFS = -57
+    state.usesManualListeningThreshold = true
+    let reloaded = AppState(sessionHistoryStore: history, apiUsageStore: APIUsageStore(fileURL: directory.appendingPathComponent("APIUsage.json")),
+        listeningPreferences: preferences)
+    #expect(reloaded.usesManualListeningThreshold)
+    #expect(reloaded.listeningThresholdDBFS == -57)
+    state.usesManualListeningThreshold = false
+    #expect(!preferences.bool(forKey: "manual-listening-threshold-enabled"))
+}
+
 private func pcm16Data(sampleCount: Int, value: Int16) -> Data {
     let samples = Array(repeating: value.littleEndian, count: sampleCount)
     return samples.withUnsafeBytes { Data($0) }

@@ -18,6 +18,7 @@ struct LocalActivityDetector {
     private let configuration: LocalActivityConfiguration
     private let minimumActivationDBFS: Float
     private let floorDBFS: Float
+    private var manualThresholdDBFS: Float?
 
     private(set) var isActive = false
     private(set) var noiseFloorDBFS: Float
@@ -30,19 +31,21 @@ struct LocalActivityDetector {
         configuration: LocalActivityConfiguration = .init(),
         initialNoiseFloorDBFS: Float = -60,
         minimumActivationDBFS: Float = -45,
-        floorDBFS: Float = -96
+        floorDBFS: Float = -96,
+        manualThresholdDBFS: Float? = nil
     ) {
         self.configuration = configuration
         self.minimumActivationDBFS = minimumActivationDBFS
         self.floorDBFS = floorDBFS
+        self.manualThresholdDBFS = manualThresholdDBFS
         noiseFloorDBFS = initialNoiseFloorDBFS
     }
 
     mutating func process(_ frame: PCM16Frame) -> LocalActivityMeasurement {
         let level = calculateLevelDBFS(frame.data)
         let duration = frame.duration
-        let activationThreshold = max(noiseFloorDBFS + configuration.activationAboveNoiseFloor, minimumActivationDBFS)
-        let releaseThreshold = noiseFloorDBFS + configuration.releaseAboveNoiseFloor
+        let activationThreshold = manualThresholdDBFS ?? max(noiseFloorDBFS + configuration.activationAboveNoiseFloor, minimumActivationDBFS)
+        let releaseThreshold = manualThresholdDBFS.map { $0 - 3 } ?? (noiseFloorDBFS + configuration.releaseAboveNoiseFloor)
 
         var event: LocalActivityEvent = .none
 
@@ -82,6 +85,12 @@ struct LocalActivityDetector {
             isActive: isActive,
             event: event
         )
+    }
+
+    mutating func setManualThreshold(_ threshold: Float?) {
+        manualThresholdDBFS = threshold
+        activationDuration = 0
+        releaseDuration = 0
     }
 
     private mutating func updateStableNoiseFloor(level: Float, duration: TimeInterval) {
