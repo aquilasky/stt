@@ -103,15 +103,26 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
     private var receiveTask: Task<Void, Never>?
     private var startTime: TimeInterval?
     private var lastResultTime: TimeInterval?
+    private let usageStore: APIUsageStore?
+    private let usageSessionID: UUID?
+    private let usageSnapshotInterval: Duration
+    private var audioUsage: AudioUsageAccumulator?
+    private var usageTimer: Task<Void, Never>?
 
     init(
         settings: AliyunRealtimeSettings,
         apiKeyLoader: @escaping @Sendable () throws -> String?,
-        transport: AliyunWebSocketTransport = URLSessionAliyunWebSocketTransport()
+        transport: AliyunWebSocketTransport = URLSessionAliyunWebSocketTransport(),
+        usageStore: APIUsageStore? = nil,
+        sessionID: UUID? = nil,
+        usageSnapshotInterval: Duration = .seconds(30)
     ) {
         self.settings = settings
         self.apiKeyLoader = apiKeyLoader
         self.transport = transport
+        self.usageStore = usageStore
+        self.usageSessionID = sessionID
+        self.usageSnapshotInterval = usageSnapshotInterval
     }
 
     func start(configuration: SpeechConfiguration) async throws {
@@ -130,6 +141,17 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
         request.setValue("LectureCaption/1.0.0", forHTTPHeaderField: "User-Agent")
 
         taskID = id
+        if usageStore != nil {
+            audioUsage = AudioUsageAccumulator(taskID: id, sessionID: usageSessionID, settings: settings)
+            let interval = usageSnapshotInterval
+            usageTimer = Task { [weak self] in
+                while !Task.isCancelled {
+                    do { try await Task.sleep(for: interval) }
+                    catch { return } // Cancellation ends this task's periodic snapshots.
+                    await self?.submitUsageSnapshots()
+                }
+            }
+        }
         startTime = RecognitionDiagnostics.now
         lastResultTime = nil
         hasSentFinish = false
@@ -155,8 +177,13 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
         guard isReady else { throw AliyunRealtimeProviderError.taskNotReady }
         guard !audio.isEmpty else { return }
         let started = RecognitionDiagnostics.now
+        let usage = audioUsage
         defer { RecognitionDiagnostics.shared.record(.audioSendMS, (RecognitionDiagnostics.now - started) * 1000) }
         try await transport.send(data: audio)
+        usage?.add(bytes: audio.count, at: .now)
+        if usage?.isFinished == true, let usage {
+            usage.snapshots.forEach { usageStore?.submit($0) }
+        }
     }
 
     func flush() async throws {
@@ -250,6 +277,11 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
     }
 
     private func reset(closeTransport: Bool, finishStreamWith error: Error?) async {
+        usageTimer?.cancel()
+        usageTimer = nil
+        audioUsage?.isFinished = true
+        submitUsageSnapshots()
+        audioUsage = nil
         isReady = false
         taskID = nil
         hasSentFinish = false
@@ -261,6 +293,10 @@ actor AliyunRealtimeSTTProvider: SpeechRecognitionProvider {
         } else {
             eventChannel.finish()
         }
+    }
+
+    private func submitUsageSnapshots() {
+        audioUsage?.snapshots.forEach { usageStore?.submit($0) }
     }
 }
 

@@ -55,7 +55,7 @@ struct DeepSeekTranslationProvider: TranslationProvider {
         self.transport = transport
     }
 
-    func translate(_ request: TranslationRequest) async throws -> String {
+    func translate(_ request: TranslationRequest) async throws -> TranslationResult {
         guard let apiKey = try apiKeyLoader(), !apiKey.isEmpty else {
             throw DeepSeekTranslationError.missingAPIKey
         }
@@ -77,7 +77,7 @@ struct DeepSeekTranslationProvider: TranslationProvider {
         _ request: TranslationRequest,
         apiKey: String,
         includeContext: Bool
-    ) async throws -> String {
+    ) async throws -> TranslationResult {
         var urlRequest = URLRequest(url: settings.endpoint)
         urlRequest.httpMethod = "POST"
         urlRequest.timeoutInterval = settings.timeout
@@ -89,6 +89,7 @@ struct DeepSeekTranslationProvider: TranslationProvider {
         ))
 
         let (data, response) = try await transport.perform(urlRequest)
+        try Task.checkCancellation()
         guard let httpResponse = response as? HTTPURLResponse else {
             throw DeepSeekTranslationError.invalidResponse
         }
@@ -97,7 +98,15 @@ struct DeepSeekTranslationProvider: TranslationProvider {
         }
         let translation = try DeepSeekResponse.translation(from: data)
         guard !translation.isEmpty else { throw DeepSeekTranslationError.invalidResponse }
-        return translation
+        do {
+            let usage = try JSONDecoder().decode(DeepSeekUsageEnvelope.self, from: data).usage
+            guard usage.isValid else { throw APIUsageStoreError.invalidRecord }
+            return TranslationResult(text: translation,
+                usage: TranslationUsage(tokens: usage, model: settings.model, completedAt: .now))
+        } catch {
+            return TranslationResult(text: translation,
+                usageError: "DeepSeek 响应缺少有效 usage，该请求未计入用量；译文正常显示。")
+        }
     }
 
     private func systemPrompt(target: TargetLanguage) -> String {
@@ -195,4 +204,8 @@ private struct DeepSeekResponse: Decodable {
         }
         return content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+}
+
+private struct DeepSeekUsageEnvelope: Decodable {
+    let usage: DeepSeekTokenUsage
 }

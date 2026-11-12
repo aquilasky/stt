@@ -17,5 +17,11 @@ struct TranslationContextSegment: Sendable {
 }
 
 protocol TranslationProvider: Sendable {
-    func translate(_ request: TranslationRequest) async throws -> String
+    func translate(_ request: TranslationRequest) async throws -> TranslationResult
+}
+
+struct TranslationResult: Sendable {
+    let text: String
+    var usage: TranslationUsage? = nil
+    var usageError: String? = nil
 }
