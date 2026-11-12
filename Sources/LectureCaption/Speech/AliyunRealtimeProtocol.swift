@@ -32,7 +32,7 @@ struct AliyunRealtimeSettings: Sendable, Equatable {
     init(
         workspaceID: String,
         region: Region = .singapore,
-        model: String = "qwen-audio-3.0-asr-flash-streaming"
+        model: String = "qwen-audio-3.1-asr-flash-streaming"
     ) {
         self.workspaceID = workspaceID
         self.region = region

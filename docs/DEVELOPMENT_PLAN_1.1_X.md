@@ -8,6 +8,10 @@
 
 ## 1. 目标与版本顺序
 
+2026-11-12 用户调整：MAN-112 验收通过，PR #81 已合并。用户明确要求在 1.2 前插入独立模型升级（Issue #84）：默认改用 `qwen-audio-3.1-asr-flash-streaming`，保留既有端点、PCM 格式、参数、partial/final、断句和翻译行为，不新增自动回退。3.1 不套用 3.0 的每秒单价，继续统计成功发送时长但费用标为无法估算；历史快照不变。门禁包括请求模型与两地域参数回归、未知单价测试、全量测试、arm64 Debug 构建、独立审查及 MAN-113 用户真实会话确认。此升级未验收前不开始 1.2。
+
+官方依据：[客户端事件](https://help.aliyun.com/zh/model-studio/qwen-audio-asr-streaming-client-events)、[WebSocket 接入](https://help.aliyun.com/zh/model-studio/qwen-audio-asr-streaming-websocket-api)、[3.1 模型与价格](https://help.aliyun.com/zh/model-studio/qwen-audio-3-1-asr-flash-streaming)。模型页按输入/输出 Token 列价，现有成功发送秒数不足以推算账单，不扩展计费字段或猜测转换比例。
+
 2026-09-28 进度：Feature 1～3、macOS 27 浮窗兼容修复及延迟诊断均已获用户合并授权并合并（PR #64/#65/#66/#68/#70）。用户授权将这些已完成改动汇总发布为 1.1.3，本次不补发独立 1.1.1/1.1.2。Feature 4～8 和 1.2 尚未开始。用户同日授权公开仓库并恢复标准免费 GitHub CI，此授权与 AGENTS.md 新规则优先于本文旧的全面禁止 CI 条款。
 
 2026-09-30 进度：Feature 4～6 已通过用户手工验收并合并（PR #73/#75/#77）。Feature 7 从 Issue #78 开始，拆分课程与 API 配置；Feature 8 和 1.2 尚未开始。
