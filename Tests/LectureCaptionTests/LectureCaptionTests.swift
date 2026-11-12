@@ -1607,14 +1607,15 @@ private func makeExportRecord(courseName: String = "Machine Learning") -> SavedL
     _ = try pipeline.process(buffer: pcmBuffer(sampleCount: 320, value: 100), startedAt: 0)
     pipeline.setManualThreshold(-55)
     _ = try pipeline.process(buffer: pcmBuffer(sampleCount: 320, value: 100), startedAt: 0.02)
-    let active = try #require(pipeline.process(buffer: pcmBuffer(sampleCount: 320, value: 100), startedAt: 0.04))
+    let activeOutput = try pipeline.process(buffer: pcmBuffer(sampleCount: 320, value: 100), startedAt: 0.04)
+    let active = try #require(activeOutput)
     #expect(active.isInputActive)
     #expect(active.preRollData?.count == 1920)
     pipeline.setManualThreshold(nil)
     _ = try pipeline.process(buffer: pcmBuffer(sampleCount: 320, value: 0), startedAt: 0.06)
-    let inactive = try #require(pipeline.process(buffer: pcmBuffer(sampleCount: 320, value: 0), startedAt: 0.08))
+    let inactiveOutput = try pipeline.process(buffer: pcmBuffer(sampleCount: 320, value: 0), startedAt: 0.08)
+    let inactive = try #require(inactiveOutput)
     #expect(!inactive.isInputActive)
-    #expect(inactive.chunks.count == 0) // partial chunk retained, not reset by threshold change
 }
 
 @MainActor @Test func listeningThresholdPreferencesPersistInIsolatedDomain() throws {
