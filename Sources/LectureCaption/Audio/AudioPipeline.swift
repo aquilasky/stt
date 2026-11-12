@@ -21,10 +21,11 @@ final class AudioPipeline: @unchecked Sendable {
     init(
         sampleRate: Double = 16_000,
         chunkDuration: TimeInterval = 0.04,
-        activityConfiguration: LocalActivityConfiguration = .init()
+        activityConfiguration: LocalActivityConfiguration = .init(),
+        manualThresholdDBFS: Float? = nil
     ) {
         converter = PCM16AudioConverter(sampleRate: sampleRate)
-        detector = LocalActivityDetector(configuration: activityConfiguration)
+        detector = LocalActivityDetector(configuration: activityConfiguration, manualThresholdDBFS: manualThresholdDBFS)
         chunker = PCM16Chunker(sampleRate: sampleRate, chunkDuration: chunkDuration)
         preRoll = PreRollAudioBuffer(maximumDuration: activityConfiguration.preRoll, sampleRate: sampleRate)
     }
@@ -52,6 +53,10 @@ final class AudioPipeline: @unchecked Sendable {
                 endedAt: endedAt
             )
         }
+    }
+
+    func setManualThreshold(_ threshold: Float?) {
+        lock.withLock { detector.setManualThreshold(threshold) }
     }
 
     func flush() -> PCM16Frame? {

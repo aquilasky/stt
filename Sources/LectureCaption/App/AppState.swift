@@ -21,6 +21,13 @@ final class AppState {
     var aliyunAPIKey = ""
     var deepSeekAPIKey = ""
     var autoPauseInterval: TimeInterval? = 30
+    var usesManualListeningThreshold: Bool {
+        didSet { updateListeningThreshold() }
+    }
+    var listeningThresholdDBFS: Double {
+        didSet { updateListeningThreshold() }
+    }
+    @ObservationIgnored private let listeningPreferences: UserDefaults
     var phase: SessionPhase = .idle
     var isInputActive = false
     var inputLevelDBFS: Float = -96
@@ -74,7 +81,11 @@ final class AppState {
     @ObservationIgnored private var continuedSessionMinimumTimestamp: TimeInterval = 0
     @ObservationIgnored private var continuedSourceSessionIDs: Set<UUID> = []
 
-    init(sessionHistoryStore: LocalSessionHistoryStore = .default, apiUsageStore: APIUsageStore = APIUsageStore()) {
+    init(sessionHistoryStore: LocalSessionHistoryStore = .default, apiUsageStore: APIUsageStore = APIUsageStore(),
+         listeningPreferences: UserDefaults = .standard) {
+        self.listeningPreferences = listeningPreferences
+        usesManualListeningThreshold = listeningPreferences.bool(forKey: "manual-listening-threshold-enabled")
+        listeningThresholdDBFS = listeningPreferences.object(forKey: "listening-threshold-dbfs") as? Double ?? -45
         self.apiUsageStore = apiUsageStore
         self.sessionHistoryStore = sessionHistoryStore
         sessionHistoryWriter = LocalSessionHistoryWriter(store: sessionHistoryStore)
@@ -99,6 +110,12 @@ final class AppState {
 
     var canStart: Bool {
         phase == .idle || phase == .completed
+    }
+
+    private func updateListeningThreshold() {
+        listeningPreferences.set(usesManualListeningThreshold, forKey: "manual-listening-threshold-enabled")
+        listeningPreferences.set(listeningThresholdDBFS, forKey: "listening-threshold-dbfs")
+        audioCaptureController.setManualThreshold(usesManualListeningThreshold ? Float(listeningThresholdDBFS) : nil)
     }
 
     var canPause: Bool {
@@ -237,7 +254,9 @@ final class AppState {
                 guard let self, self.sessionGeneration == generation else { return }
                 self.receiveAudioPipelineOutput(output)
             }
-            try await audioCaptureController.startMicrophone(onOutput: outputHandler)
+            try await audioCaptureController.startMicrophone(
+                manualThresholdDBFS: usesManualListeningThreshold ? Float(listeningThresholdDBFS) : nil,
+                onOutput: outputHandler)
 
             guard generation == sessionGeneration, phase != .completed else {
                 audioCaptureController.stop()

@@ -8,6 +8,8 @@
 
 ## 1. 目标与版本顺序
 
+2026-11-12 用户插入任务（Issue #86）：3.1 实测可用，PR #85 合并，计价暂缓。先增加可调本地监听阈值，再开始 1.2。默认保留自动阈值；用户可切到手动绝对阈值（-75～-20 dBFS，1 dB 步进），数值越小越灵敏，运行中生效并保存到各版本独立 UserDefaults。手动模式释放阈值为启动阈值减 3 dB，保留既有启动/释放持续时间、预滚和自动待机计时；自适应噪声底不再抬高手动阈值。不改云端 VAD、增益或其他自动暂停策略，不声称解决 Issue #53 全部问题。测试覆盖轻声触发、持续声音、迟滞、热更新和设置持久化；真实麦克风以 MAN-114 验收。
+
 2026-11-12 用户调整：MAN-112 验收通过，PR #81 已合并。用户明确要求在 1.2 前插入独立模型升级（Issue #84）：默认改用 `qwen-audio-3.1-asr-flash-streaming`，保留既有端点、PCM 格式、参数、partial/final、断句和翻译行为，不新增自动回退。3.1 不套用 3.0 的每秒单价，继续统计成功发送时长但费用标为无法估算；历史快照不变。门禁包括请求模型与两地域参数回归、未知单价测试、全量测试、arm64 Debug 构建、独立审查及 MAN-113 用户真实会话确认。此升级未验收前不开始 1.2。
 
 官方依据：[客户端事件](https://help.aliyun.com/zh/model-studio/qwen-audio-asr-streaming-client-events)、[WebSocket 接入](https://help.aliyun.com/zh/model-studio/qwen-audio-asr-streaming-websocket-api)、[3.1 模型与价格](https://help.aliyun.com/zh/model-studio/qwen-audio-3-1-asr-flash-streaming)。模型页按输入/输出 Token 列价，现有成功发送秒数不足以推算账单，不扩展计费字段或猜测转换比例。

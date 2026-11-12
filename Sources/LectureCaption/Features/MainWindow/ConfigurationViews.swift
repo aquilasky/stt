@@ -61,6 +61,23 @@ struct APIConfigurationView: View {
                     }
                 }
 
+                Section("本地监听") {
+                    Toggle("手动监听阈值", isOn: $appState.usesManualListeningThreshold)
+                    if appState.usesManualListeningThreshold {
+                        LabeledContent("触发阈值", value: String(format: "%.0f dBFS", appState.listeningThresholdDBFS))
+                        Slider(value: $appState.listeningThresholdDBFS, in: -75 ... -20, step: 1) {
+                            Text("监听阈值")
+                        }
+                        Text("越低（越负）越灵敏。可先试 -55 dBFS；环境声也可能触发，增加用量。运行中立即生效。")
+                            .font(.caption)
+                    } else {
+                        Text("自动根据背景噪声调整，保持原有监听行为。")
+                            .font(.caption)
+                    }
+                    Text(String(format: "当前输入：%.0f dBFS", appState.inputLevelDBFS))
+                        .font(.caption).monospacedDigit()
+                }
+
                 Section("阿里云识别") {
                     TextField("Workspace ID", text: $appState.aliyunWorkspaceID)
                     Picker("地域", selection: $appState.aliyunRegion) {

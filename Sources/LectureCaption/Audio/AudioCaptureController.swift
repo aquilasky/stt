@@ -10,10 +10,10 @@ final class AudioCaptureController: @unchecked Sendable {
     private var pendingDelivery: PendingDelivery?
     private var isDeliveryScheduled = false
 
-    func startMicrophone(onOutput: @escaping OutputHandler) async throws {
+    func startMicrophone(manualThresholdDBFS: Float? = nil, onOutput: @escaping OutputHandler) async throws {
         // Resolve opt-in defaults before installing the real-time microphone callback.
         let diagnostics = RecognitionDiagnostics.shared
-        let (generation, activePipeline) = prepareStart()
+        let (generation, activePipeline) = prepareStart(manualThresholdDBFS: manualThresholdDBFS)
         let capture = MicrophoneCapture()
         install(capture, for: generation)
 
@@ -51,10 +51,14 @@ final class AudioCaptureController: @unchecked Sendable {
         }
     }
 
-    private func prepareStart() -> (generation: Int, pipeline: AudioPipeline) {
+    func setManualThreshold(_ threshold: Float?) {
+        lock.withLock { pipeline.setManualThreshold(threshold) }
+    }
+
+    private func prepareStart(manualThresholdDBFS: Float?) -> (generation: Int, pipeline: AudioPipeline) {
         lock.withLock {
             let generation = generationGate.begin()
-            pipeline = AudioPipeline()
+            pipeline = AudioPipeline(manualThresholdDBFS: manualThresholdDBFS)
             pendingDelivery = nil
             return (generation, pipeline)
         }
