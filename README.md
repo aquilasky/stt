@@ -7,7 +7,7 @@ LectureCaption 是一款面向课堂和网课的 macOS 实时双语字幕应用�
 ## 功能
 
 - 麦克风实时采集和输入音量显示。
-- 阿里云 `qwen-audio-3.0-asr-flash-streaming` partial/final 原文识别。
+- 阿里云 `qwen-audio-3.1-asr-flash-streaming` partial/final 原文识别。
 - DeepSeek `deepseek-v4-flash` 异步翻译，支持课程、主题、近期上下文和术语表。
 - 本地输入活动检测，静音后停止云端 ASR，重新说话时带 800 ms 预滚自动恢复。
 - 完整字幕滚动查看、字号调整和本地课堂记录。
@@ -313,7 +313,7 @@ shasum -a 256 Release/LectureCaption.zip Release/LectureCaption.dmg
 - DeepSeek 当前只翻译 final 原文；partial 流式低延迟翻译是 `1.2.0` 计划的唯一 feature。
 - 支持 TXT/JSON 导出，但不支持 Markdown 导出或历史记录编辑。
 - 阿里云端点校验、本地敏感文件防护和 Release 隐私清理安排在 `1.1.1`～`1.1.3`，并优先于后续界面改进。
-- 当前开发分支已包含悬浮字幕下边界追踪、主界面智能跟随、动态开始/继续入口及课程与 API 配置分离；本地 API 用量与估算费用正在 `1.1.8` 验收。正式发布功能以对应 Release 为准。
+- 当前开发分支已包含悬浮字幕下边界追踪、主界面智能跟随、动态开始/继续入口、课程与 API 配置分离及本地用量统计；默认 ASR 3.1 升级待验收。3.1 暂只统计音频时长，不套用 3.0 单价，费用显示无法估算。正式发布功能以对应 Release 为准。
 - 历史发布产物可能包含 LLVM coverage/profile 字符串或开发机绝对源码路径；静态检查未发现真实凭据，后续产物由 `1.1.3` 增加强制检查，旧 Release 不重写。
 - 在持续、低音量且稳定的输入下，本地活动检测可能误触发自动待机，详见 [Issue #53](https://github.com/aquilasky/stt/issues/53)。
 - 应用未经过 Apple 公证，也没有自动更新机制。

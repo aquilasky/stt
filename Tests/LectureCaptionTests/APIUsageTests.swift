@@ -34,6 +34,23 @@ private let usageTokens = DeepSeekTokenUsage(promptTokens: 1000, cacheHitTokens:
     #expect(summary.speechSeconds == 1)
 }
 
+@Test func usage31AudioCountsSecondsWithoutInventingPrice() {
+    for region in AliyunRealtimeSettings.Region.allCases {
+        let settings = AliyunRealtimeSettings(workspaceID: "workspace", region: region)
+        var record = APIUsageRecord.audio(taskID: "upgrade", sessionID: nil, model: settings.model,
+            region: region, at: usageDate("2026-11-12T01:00:00Z"), timeZone: usageUTC)
+        record.metrics = .audio(bytes: 32_000, region: region)
+        #expect(record.isValid)
+        #expect(record.audioSeconds == 1)
+        #expect(record.price == nil)
+        #expect(record.estimatedCost == nil)
+        #expect(record.priceUnavailableReason != nil)
+        let summary = APIUsageSummary(records: [record], range: .all)
+        #expect(summary.speechSeconds == 1)
+        #expect(summary.unpricedCount == 1)
+    }
+}
+
 @Test func usagePriceHonorsExactPeakBoundariesWeekendsAndChinaHolidays() {
     #expect(UsagePriceSnapshot.isDeepSeekPeak(at: usageDate("2026-08-21T00:59:59Z")) == false)
     #expect(UsagePriceSnapshot.isDeepSeekPeak(at: usageDate("2026-08-21T01:00:00Z")) == true)

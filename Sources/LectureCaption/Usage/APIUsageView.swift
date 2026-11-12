@@ -114,7 +114,7 @@ struct APIUsageView: View {
             }
         }
         Section("价格快照 · \(UsagePriceSnapshot.verifiedDate)") {
-            Text("ASR：北京 0.00033、新加坡 0.00066 CNY/秒。")
+            Text("ASR 3.0 历史单价：北京 0.00033、新加坡 0.00066 CNY/秒。当前 3.1 按发送成功的音频统计时长，费用无法估算，不计入小计。")
             Text("DeepSeek-V4.1-Flash：非高峰缓存命中/未命中/输出为 0.003 / 0.15 / 0.60 USD/百万 Token；高峰为两倍。旧 v4-flash 名称按此价格估算。")
             Text("高峰：工作日 01–04、06–10 UTC；周末及中国节假日非高峰。内置 2026 年日历，未覆盖的年份无法估算。")
             HStack {

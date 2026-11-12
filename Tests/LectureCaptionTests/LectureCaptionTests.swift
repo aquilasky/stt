@@ -790,7 +790,7 @@ private final class FlippedCaptionDocumentView: NSView {
     #expect(header["action"] as? String == "run-task")
     #expect(header["task_id"] as? String == "task-1")
     #expect(header["streaming"] as? String == "duplex")
-    #expect(payload["model"] as? String == "qwen-audio-3.0-asr-flash-streaming")
+    #expect(payload["model"] as? String == "qwen-audio-3.1-asr-flash-streaming")
     #expect(parameters["sample_rate"] as? Int == 16_000)
     #expect(parameters["language_hints"] as? [String] == ["en"])
     #expect((parameters["vocabulary"] as? [String: Int])?["gradient descent"] == 3)
@@ -805,6 +805,27 @@ private final class FlippedCaptionDocumentView: NSView {
     #expect(singapore.workspaceID == "workspace")
     #expect(beijing.workspaceID == "workspace")
     #expect(AliyunRealtimeSettings.Region.beijing.displayName == "北京")
+}
+
+@Test func aliyun31RunTaskPreservesParametersAcrossRegions() throws {
+    for region in AliyunRealtimeSettings.Region.allCases {
+        let settings = AliyunRealtimeSettings(workspaceID: "workspace", region: region)
+        let speech = SpeechConfiguration(provider: .aliyunRealtime, sourceLanguage: .english,
+            sampleRate: 16_000, glossary: [])
+        let json = try AliyunRealtimeProtocol.runTask(taskID: "upgrade-test", settings: settings, speech: speech)
+        let root = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let payload = try #require(root["payload"] as? [String: Any])
+        let parameters = try #require(payload["parameters"] as? [String: Any])
+        #expect(payload["model"] as? String == "qwen-audio-3.1-asr-flash-streaming")
+        #expect(payload["function"] as? String == "recognition")
+        #expect(parameters["format"] as? String == "pcm")
+        #expect(parameters["sample_rate"] as? Int == 16_000)
+        #expect(parameters["semantic_punctuation_enabled"] as? Bool == false)
+        #expect(parameters["max_sentence_silence"] as? Int == 1_300)
+        #expect(parameters["heartbeat"] as? Bool == true)
+        #expect(parameters["vad_model"] == nil)
+        #expect(parameters["keep_dialect"] == nil)
+    }
 }
 
 @Test func aliyunSettingsRejectWorkspaceIDsThatCouldChangeTheEndpoint() {
